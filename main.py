@@ -52,7 +52,11 @@ app = FastAPI(
 # le frontend n'envoie ni cookie ni en-tête d'authentification (fetch simples
 # avec corps JSON), donc pas besoin de credentials côté CORS.
 _default_origins = "http://localhost:5173,http://localhost:3000"
-allowed_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
+# rstrip("/") : l'en-tête Origin envoyé par les navigateurs n'a jamais de
+# slash final (format scheme://host[:port]) — une valeur d'env var saisie
+# avec un slash final (erreur de saisie courante en copiant une URL) ferait
+# sinon échouer silencieusement toute comparaison d'origine.
+allowed_origins = [o.strip().rstrip("/") for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
