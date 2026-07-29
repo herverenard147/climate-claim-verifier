@@ -1,0 +1,33 @@
+services:
+  # Backend FastAPI (Docker requis : l'environnement natif Render n'autorise
+  # pas apt-get au build, nécessaire pour tesseract-ocr — voir Dockerfile).
+  - name: terrava-ai-backend
+    type: web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      # URL publique du frontend, injectée automatiquement par Render (pas
+      # de valeur codée en dur) : si l'URL du frontend change, cette
+      # variable se met à jour sans toucher au code ni reconstruire l'image.
+      - key: CORS_ORIGINS
+        fromService:
+          name: terrava-ai-frontend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # Frontend React/Vite (site statique).
+  - name: terrava-ai-frontend
+    type: web
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      # URL publique du backend, injectée automatiquement par Render pour la
+      # même raison que ci-dessus.
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: terrava-ai-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

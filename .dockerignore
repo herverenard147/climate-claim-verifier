@@ -1,0 +1,13 @@
+frontend/
+venv/
+env/
+__pycache__/
+*.pyc
+.git/
+.DS_Store
+history.db
+veille_state.json
+veille_reports/
+veille.log
+node_modules/
+IPCC_AR6_WGI_SummaryForAll_French.pdf

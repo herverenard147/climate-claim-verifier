@@ -6,8 +6,6 @@ env/
 node_modules/
 .DS_Store
 Models_saved/
-models_saved/*.bin
-models_saved/*.joblib
 frontend/node_modules/
 frontend/dist/
 history.db

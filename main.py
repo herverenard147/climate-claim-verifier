@@ -43,11 +43,21 @@ app = FastAPI(
     version="2.0"
 )
 
-# Configuration CORS pour autoriser React (Vite tourne souvent sur le port 5173)
+# Configuration CORS. En local (variable CORS_ORIGINS absente), autorise les
+# ports Vite habituels. En production (Render), CORS_ORIGINS doit contenir
+# l'URL exacte du frontend déployé (ex. https://terrava-ai-frontend.onrender.com),
+# en variable d'environnement plutôt qu'en dur, pour ne pas avoir à modifier
+# le code (ni redéployer l'image Docker) si cette URL change. Plusieurs
+# origines peuvent être séparées par une virgule. allow_credentials=False :
+# le frontend n'envoie ni cookie ni en-tête d'authentification (fetch simples
+# avec corps JSON), donc pas besoin de credentials côté CORS.
+_default_origins = "http://localhost:5173,http://localhost:3000"
+allowed_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En production, limiter aux domaines précis
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
