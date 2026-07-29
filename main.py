@@ -462,7 +462,16 @@ def check_claims_batch(request: BatchClaimRequest):
 
 
 @app.post("/api/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...)):
+def upload_pdf(file: UploadFile = File(...)):
+    # def (pas async def) : PyPDF2/OCR ci-dessous sont du travail CPU
+    # synchrone. Dans une route async def, ce travail s'exécute directement
+    # sur la boucle asyncio et bloque TOUT le serveur (un seul worker,
+    # WEB_CONCURRENCY=1 sur Render) pendant toute sa durée — vérifié en
+    # conditions réelles sur Render : un unique upload de PDF volumineux a
+    # rendu le service entièrement indisponible (502 sur toutes les routes,
+    # y compris /docs) le temps du traitement. Une route def synchrone est
+    # automatiquement exécutée par Starlette dans un thread du pool, ce qui
+    # libère la boucle asyncio pour les autres requêtes pendant ce temps.
     # La casse de l'extension n'est pas fiable comme signal de format : de
     # nombreux PDF (export Windows/macOS, scanners) sont nommés ".PDF" ou
     # ".Pdf". Un filtre sensible à la casse rejetait ces fichiers, pourtant
@@ -474,7 +483,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Seuls les fichiers PDF et TXT sont acceptés.")
 
     try:
-        content = await file.read()
+        content = file.file.read()
         text = ""
 
         if is_pdf:
