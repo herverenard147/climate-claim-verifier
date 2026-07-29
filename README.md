@@ -12,6 +12,20 @@
 - **Filtre Régional :** Sélecteur de zone géographique (Global / Afrique de l'Ouest / Côte d'Ivoire) côté interface. Le corpus contient un focus institutionnel sur cette région (GIEC, OMM, Banque Mondiale), mais **le filtre n'est pas encore appliqué côté backend** : `zone_geo` est transmis à l'API mais actuellement ignoré par `check_claim()` dans `main.py` — la recherche FAISS reste globale quelle que soit la zone sélectionnée. *(Limitation connue, pas un bug caché : à implémenter si le filtrage réel par région est souhaité.)*
 
 
+ Déploiement en production (Render)
+
+- **Frontend (interface) :** https://terrava-ai-frontend.onrender.com
+- **Backend (API) :** https://terrava-ai-backend.onrender.com (documentation interactive : `/docs`)
+- **Dépôt utilisé pour le déploiement :** [`herverenard147/climate-claim-verifier`](https://github.com/herverenard147/climate-claim-verifier) — un fork du dépôt d'origine. Nécessaire car l'installation de la GitHub App de Render est limitée aux dépôts appartenant directement au compte GitHub connecté ; un accès collaborateur/push sur un dépôt tiers ne suffit pas (même contrainte déjà rencontrée sur un autre projet, NouanKanyAI).
+- **Configuration :** `render.yaml` déclare les deux services (backend `Docker`, frontend site statique) avec injection automatique des URLs publiques croisées (`CORS_ORIGINS` / `VITE_API_BASE_URL`) — voir `DOCUMENTATION_TECHNIQUE.md` section 12 pour le détail.
+
+**Limites connues de cet environnement de déploiement** (plan gratuit Render, vérifiées par des tests réels sur les URLs ci-dessus, pas supposées) :
+
+- **Démarrage à froid (cold start) :** le plan gratuit met le service en veille après une période d'inactivité. Le premier appel après une veille peut prendre 30 à 60 secondes (redémarrage du conteneur + rechargement du modèle `all-MiniLM-L6-v2` en mémoire), contre une réponse quasi instantanée une fois le service « chaud ».
+- **Disque éphémère (historique et feedback perdus à chaque redéploiement) :** `history.db` (SQLite) est recréé vide à chaque redémarrage/redéploiement du conteneur — **aucune persistance entre déploiements** sur le plan gratuit. Un disque persistant Render existe pour lever cette limite mais est une option **payante**, non activée dans ce déploiement.
+- **Upload de PDF volumineux/scanné : non fiable sur le plan gratuit.** Testé en conditions réelles avec un vrai rapport GIEC AR6 (18 pages, 6,9 Mo) : le traitement fait planter le processus backend (probable dépassement de RAM du plan gratuit) et rend **tout le service indisponible** pendant son redémarrage automatique (30 à 60 secondes, toutes les routes). Les fichiers légers ou à texte natif (sans recours au fallback OCR) fonctionnent normalement et n'ont provoqué aucun incident lors des tests. Cause probable : le pipeline `pdf2image`/`pytesseract` (rendu d'image à 200 DPI par page) s'ajoute à la mémoire déjà occupée par le modèle chargé, ce qui peut dépasser la RAM allouée par le plan gratuit. **Non corrigé dans le cadre de ce déploiement** : la correction (limiter/désactiver l'OCR en production, ou passer à un plan payant avec plus de RAM) implique un arbitrage de coût ou de fonctionnalité qui n'a pas été tranché.
+- **Seuil anti-hallucination (0.20) :** confirmé fonctionnel comme documenté (section 4 de `DOCUMENTATION_TECHNIQUE.md`) pour un texte réellement dénué de sens (ex. `"???!!!###"`). En revanche, un claim hors-sujet en langage naturel « normal » (ex. un fait sur le Bitcoin ou le football) ne déclenche généralement **pas** ce seuil : son score cosinus avec le corpus climatique se situe typiquement entre 0.30 et 0.37, au-dessus du seuil, à cause du plancher naturel de similarité des embeddings de phrases (une paire de phrases sans aucun rapport a rarement une similarité cosinus proche de 0). Limite pré-existante du modèle d'embeddings, révélée ici en testant contre l'instance de production avec plusieurs exemples réels.
+
  Architecture Technique (SaaS)
 
 Le projet a été refondu pour adopter un standard industriel **Full-Stack** :

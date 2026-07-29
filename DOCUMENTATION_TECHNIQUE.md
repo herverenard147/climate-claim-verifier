@@ -304,3 +304,103 @@ python3 scripts/veille_giec_omm.py
 ```
 
 **Limites** : le repli OMM par extraction de liens est plus fragile qu'un flux RSS (dépend de la structure HTML actuelle de `wmo.int`, pourrait casser silencieusement si le site change de mise en page — un échec de requête est cependant signalé dans le rapport, pas masqué) ; la détection ne distingue pas un document réellement nouveau d'une réorganisation d'URL (un lien renommé serait signalé comme "nouveau") ; aucune notification (email, Slack, etc.) n'est envoyée, seulement un fichier de rapport local.
+
+## 12. Déploiement (Render)
+
+### Diagnostic préalable : contrainte GitHub App
+
+Avant toute configuration, vérification de la même contrainte déjà rencontrée sur un autre projet (NouanKanyAI) : l'installation de la GitHub App de Render ne peut sélectionner que des dépôts appartenant directement au compte GitHub connecté (`herverenard147`) — un accès collaborateur/push sur un dépôt tiers (`Yannick07-sys/climate-claim-verifier`, l'`origin` du projet à ce moment) ne suffit pas. Confirmé par `gh api repos/Yannick07-sys/climate-claim-verifier` (propriétaire différent du compte authentifié) et par la liste des dépôts déjà connectés à Render (`render services --output json`), tous sous `herverenard147`. Contournement identique à NouanKanyAI : fork sous `herverenard147/climate-claim-verifier`, devenu l'`origin` du projet et le dépôt utilisé pour le déploiement.
+
+### Backend — Web Service Docker
+
+Un `Dockerfile` est nécessaire (plutôt que l'environnement natif Render) car **l'environnement natif ne permet pas d'installer de paquets système (`apt-get`) au build** — vérifié par recherche avant implémentation, pas supposé. Or `tesseract-ocr` (OCR) est une dépendance système, pas un paquet Python.
+
+```dockerfile
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr tesseract-ocr-fra poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+**torch CPU-only explicite** : `sentence-transformers` installe par défaut `torch` avec tout l'écosystème CUDA (paquets `nvidia-cu13`), inutile pour ce projet explicitement conçu Zéro-GPU. Mesuré par build réel : image à **3,13 Go** avec le torch par défaut, contre **583 Mo** en forçant `torch==2.13.0` depuis l'index CPU officiel avant le reste des requirements. Ce n'est pas qu'une optimisation cosmétique : la première tentative de déploiement avec l'image à 3,13 Go a **réellement échoué** sur Render (`update_failed`, voir plus bas), la seconde avec l'image allégée a réussi.
+
+**`$PORT`** : Render assigne le port d'écoute dynamiquement via cette variable d'environnement (pas un port fixe) — d'où la forme shell du `CMD` (`uvicorn ... --port $PORT`), qui permet son expansion par le shell au démarrage du conteneur.
+
+### Artefacts modèle (`models_saved/`)
+
+Absents d'un clone frais (gitignorés jusqu'ici), nécessaires au démarrage (`load_models()` les lit directement). Deux options considérées :
+- (a) régénérer tout le pipeline ML au build (`1_prepare_data.py → migrate_csv.py → 2_build_retrieval.py → 3_train_classifier.py → 4_ingest_documents.py`) ;
+- (b) committer les artefacts déjà entraînés.
+
+**Choix : (b)**. Taille totale (`faiss_index.bin` + `classifier.joblib`) : 7,2 Mo — largement raisonnable pour Git. Démarrage prévisible et rapide, sans dépendre du téléchargement du dataset HuggingFace Climate-FEVER (~lourd) à chaque déploiement, ni du temps de ré-entraînement.
+
+### CORS
+
+`CORS_ORIGINS` (variable d'environnement, liste séparée par virgules) remplace un `allow_origins=["*"]` codé en dur. `allow_credentials` passé à `False` : le frontend n'envoie ni cookie ni en-tête d'authentification, et un wildcard combiné à `allow_credentials=True` est de toute façon rejeté par les navigateurs. Chaque origine subit un `rstrip("/")` avant comparaison — **bug réel rencontré en production** : une valeur d'env var saisie avec un slash final (`https://terrava-ai-frontend.onrender.com/`, copiée depuis la barre d'adresse du navigateur) provoquait un rejet CORS systématique (`Disallowed CORS origin`, HTTP 400), l'en-tête `Origin` envoyé par les navigateurs n'ayant jamais de slash final.
+
+### `render.yaml`
+
+Déclare les deux services et injecte automatiquement les URLs publiques croisées via `fromService`/`envVarKey: RENDER_EXTERNAL_URL`, sans valeur codée en dur ni redéploiement manuel nécessaire si une URL change :
+
+```yaml
+services:
+  - name: terrava-ai-backend
+    type: web
+    runtime: docker
+    plan: free
+    envVars:
+      - key: CORS_ORIGINS
+        fromService: {name: terrava-ai-frontend, type: web, envVarKey: RENDER_EXTERNAL_URL}
+  - name: terrava-ai-frontend
+    type: web
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService: {name: terrava-ai-backend, type: web, envVarKey: RENDER_EXTERNAL_URL}
+```
+
+Les deux services ont en réalité été créés via le CLI Render (`render services create`) plutôt que via le flux Blueprint du dashboard (non pilotable sans navigateur) ; `render.yaml` documente la configuration cible et reste utilisable pour une recréation ou une migration future.
+
+### Bug réel trouvé en production : `upload-pdf` bloquait tout le service
+
+La route `/api/upload-pdf` était déclarée `async def`, alors que `PyPDF2`/`pytesseract` y exécutent du travail **CPU synchrone**. Dans une route `async def`, ce travail s'exécute directement sur la boucle asyncio — avec un seul worker (`WEB_CONCURRENCY=1`, valeur par défaut de Render selon les CPU disponibles sur l'instance), cela **bloque tout le serveur** pendant toute la durée du traitement. Vérifié en conditions réelles : un unique upload a rendu `/docs` (route sans rapport) indisponible (502) pendant toute la durée du traitement.
+
+**Correction** : route passée en `def` (non `async`) — Starlette exécute alors automatiquement une route synchrone dans un thread du pool, libérant la boucle asyncio pour les autres requêtes. `content = await file.read()` remplacé par `content = file.file.read()` (lecture synchrone du fichier temporaire sous-jacent, `await` n'étant plus utilisable hors contexte `async`).
+
+Vérifié après correction (local, `uvicorn` direct, hors Docker) : upload PDF réel de 18 pages (40 534 caractères extraits, 0 page OCR nécessaire) traité en 5,4 s, avec une requête `/docs` concurrente servie en 0,19 s **pendant** ce traitement.
+
+### Limite non résolue : OCR sur PDF volumineux/scanné, plan gratuit
+
+Testé en conditions réelles sur l'instance Render déployée (pas seulement en local) avec un vrai rapport GIEC AR6 (18 pages, 6,9 Mo) : le traitement fait **planter le processus backend** (le worker redémarre entièrement — rechargement complet du modèle observé dans les logs, `Started server process [7]` apparaissant à nouveau) et rend tout le service indisponible pendant 30 à 60 secondes. Reproduit deux fois de façon cohérente (échec après 41,7 s puis 66,3 s, sans aucune ligne de log applicative pour la requête elle-même — signe d'un arrêt brutal du processus, pas d'une exception Python capturée). Un fichier `.txt` léger, lui, est traité normalement (200 OK, < 0,2 s) juste avant et juste après ces deux échecs, isolant bien le problème au traitement PDF lui-même plutôt qu'à la route en général.
+
+**Hypothèse la plus probable** : dépassement de la RAM allouée par le plan gratuit Render lorsque le pipeline `pdf2image`/`pytesseract` (rendu d'image à 200 DPI par page, potentiellement plusieurs pages) s'ajoute à la mémoire déjà occupée par le modèle `all-MiniLM-L6-v2`/FAISS/pandas chargés au démarrage — non confirmée avec certitude absolue (pas de message OOM explicite disponible dans les logs accessibles), mais cohérente avec l'absence totale de trace applicative (un OOM-kill du noyau ne laisse pas de traceback Python) et avec le fait que ce même PDF, en local, n'a déclenché aucun fallback OCR (extraction native réussie sur toutes les pages sauf une) — suggérant que l'environnement Render (bibliothèques système différentes) déclenche l'OCR différemment, ou que la RAM y est simplement plus contrainte qu'en local.
+
+**Non corrigé dans le cadre de ce déploiement** — décision structurante non tranchée : soit limiter/désactiver le fallback OCR en production (perte de fonctionnalité pour les PDF scannés), soit passer à un plan Render payant avec plus de RAM (coût récurrent). Les deux options nécessitent un arbitrage qui n'a pas été fait.
+
+### Disque éphémère (historique et feedback)
+
+Le disque du plan gratuit Render est **éphémère** : `history.db` (SQLite, historique des vérifications et feedback 👍/👎) est recréé vide à chaque redémarrage/redéploiement du conteneur. Vérifié fonctionnel *pendant la durée de vie d'une instance* (aller-retour réel : `POST /api/check-claim` avec `user_id` → `verification_id` renvoyé → l'entrée apparaît immédiatement dans `GET /api/history/{user_id}`), mais **aucune persistance n'est garantie entre deux déploiements**. Un disque persistant Render lèverait cette limite mais est une option payante, **non activée** (décision volontairement laissée à l'utilisateur, coût récurrent).
+
+### Autre limite pré-existante, révélée par les tests de production
+
+Le seuil anti-hallucination (0.20, section 4) se comporte comme documenté pour un texte réellement dénué de sens (`"???!!!###"` → score 0.1925, sous le seuil, `NON_VERIFIABLE`, 0 source). En testant plusieurs claims hors-sujet en langage naturel « normal » contre l'instance de production (Bitcoin, Coupe du Monde, smartphones), aucun ne tombe sous le seuil : scores mesurés entre 0.31 et 0.37, tous classés `NOT_ENOUGH_INFO`/« preuves indirectes » avec sources affichées plutôt que `NON_VERIFIABLE`. Cette limite (plancher naturel de similarité cosinus des embeddings de phrases, indépendant du sujet) préexistait à ce déploiement mais n'avait pas été caractérisée avec des exemples de langage naturel réel — seulement documentée avec des exemples extrêmes (ponctuation, langue étrangère hors corpus, voir section 4).
+
+### URLs de production et commandes
+
+| | Backend | Frontend |
+|---|---|---|
+| URL | `https://terrava-ai-backend.onrender.com` | `https://terrava-ai-frontend.onrender.com` |
+| Type | Web Service (Docker) | Static Site |
+| Build | `docker build` (Dockerfile à la racine) | `cd frontend && npm install && npm run build` |
+| Start | `uvicorn main:app --host 0.0.0.0 --port $PORT` (CMD du Dockerfile) | — (fichiers statiques servis directement) |
+| Publish directory | — | `frontend/dist` |
+| Variables d'env clés | `CORS_ORIGINS` | `VITE_API_BASE_URL` |
+| Plan | Free | Free (les sites statiques Render sont gratuits par nature) |
