@@ -13,6 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
+# torch (dépendance transitive de sentence-transformers) installe par défaut
+# les paquets nvidia-cu13 (CUDA), inutiles ici (projet Zéro-GPU, voir README)
+# et qui gonflent l'image à ~3 Go — problématique sur le plan gratuit Render
+# (RAM/temps de build limités). On installe d'abord la variante CPU-only
+# officielle : pip install -r requirements.txt ensuite ne réinstalle pas
+# torch, sa contrainte de version étant déjà satisfaite.
+RUN pip install --no-cache-dir torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
