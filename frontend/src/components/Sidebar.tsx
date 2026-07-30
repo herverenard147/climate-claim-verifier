@@ -113,15 +113,16 @@ export default function Sidebar({
       <div>
         <label className="block text-sm font-bold text-[#1E293B] uppercase tracking-wide mb-3">📄 Analyse de Document</label>
         {/* Deux lignes plutôt qu'un seul paragraphe dense : la taille max et
-            la limite OCR sont deux causes d'échec distinctes et fréquentes
-            (voir DOCUMENTATION_TECHNIQUE.md, crash OOM reproduit sur Render)
-            - les séparer les rend visibles d'un coup d'œil plutôt que noyées
-            dans une phrase générale. */}
+            la disponibilité de l'OCR sont deux causes d'échec distinctes et
+            fréquentes (voir DOCUMENTATION_TECHNIQUE.md, crash OOM reproduit
+            sur Render, y compris avec un seul appel OCR) - les séparer les
+            rend visibles d'un coup d'œil plutôt que noyées dans une phrase
+            générale. */}
         <p className="text-xs text-[#64748B] mb-1">
-          Formats acceptés : PDF, TXT — <strong>5 Mo max</strong>. Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
+          Formats acceptés : PDF, TXT — <strong>8 Mo max</strong>. Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
         </p>
         <p className="text-xs text-[#94A3B8] mb-4">
-          Pour un PDF scanné (sans texte natif) : les 5 premières pages concernées sont converties en texte automatiquement ; au-delà, les pages suivantes ne sont pas analysées.
+          Les PDF scannés (sans texte natif) ne sont pas pris en charge sur cet environnement : seul le texte déjà présent dans le document est extrait.
         </p>
 
         <div
@@ -148,7 +149,7 @@ export default function Sidebar({
               <UploadCloud className="w-8 h-8 text-[#94A3B8] mb-2 group-hover:text-[#059669] transition-colors" />
               <span className="text-sm font-medium text-[#475569]">Glissez un PDF ou TXT ici ou</span>
               <span className="text-sm font-bold text-[#059669] mt-1">Parcourez vos fichiers</span>
-              <span className="text-[10px] text-[#94A3B8] mt-1.5 tracking-wide">5 Mo max</span>
+              <span className="text-[10px] text-[#94A3B8] mt-1.5 tracking-wide">8 Mo max</span>
             </>
           )}
           <input

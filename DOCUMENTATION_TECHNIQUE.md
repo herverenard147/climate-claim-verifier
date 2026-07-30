@@ -457,3 +457,50 @@ Testés contre l'API réelle, aucune erreur 500 brute ni trace serveur visible d
 | Transcription vocale bruitée (mots isolés sans lien réel) | Non détectée comme incohérente dans un cas testé, car elle contenait accidentellement un mot-outil reconnu (`être`) — traitée comme une affirmation normale, verdict `PREUVES INDIRECTES`. **Limite assumée et documentée**, pas un bug : la détection ne comprend pas le sens, un mot-outil isolé suffit à la faire passer. |
 
 Aucun cas testé n'a produit de plantage, d'erreur technique brute, ou de réponse incompréhensible — objectif du point 7 de la mission, distinct de "comprendre" ces cas.
+
+## 14. Méthodologie : détermination réelle de la limite d'upload PDF
+
+### Pourquoi retester
+
+Une limite de 5 Mo avait été fixée par prudence (voir commit précédent), sans être testée entre deux points déjà connus : un PDF de ~7 Mo/18 pages avait fonctionné lors d'un test antérieur, et un PDF de 33 Mo/90 pages avait fait planter le service (section 12). 5 Mo rejetait donc un cas qui avait déjà fonctionné, sans qu'on sache où se situe réellement le point de bascule. Cette section documente la méthode et les données, pas seulement le chiffre final.
+
+### Méthode
+
+Tous les fichiers de test sont construits à partir du même PDF réel (rapport GIEC AR6, 18 pages) fusionné/tronqué à la page près via PyPDF2, pour obtenir des tailles intermédiaires réelles plutôt que des fichiers synthétiques. Chaque test est envoyé **directement contre l'instance Render déployée** (pas en local : la RAM constatée en local est bien supérieure à celle du plan gratuit Render, un test local ne peut pas reproduire ce crash - déjà établi section 12). Après chaque échec, les logs Render (`render logs`) sont consultés pour distinguer un rejet propre, un plantage (redémarrage du process, signature déjà connue : aucune ligne de log applicative pour la requête, `Started server process` réapparaît), ou une absence totale de réponse.
+
+### Variable 1 : taille du fichier (sans OCR)
+
+| Fichier réel testé | Taille | Résultat | Détail |
+|---|---|---|---|
+| PDF original (18 pages) | 6,62 Mo | ✅ Succès | 22,8 s, 0 page OCR nécessaire |
+| 19 pages (+1 page à image lourde) | 9,85 Mo | ❌ Échec | 502 en 16 s, process redémarré, **aucun OCR impliqué** (la page en cause a du texte natif extractible) |
+| 20 pages | 9,89 Mo | ❌ Échec | 502 en 27,3 s |
+| 24 pages | 10,82 Mo | ❌ Échec | 502 en 32,7 s, process redémarré |
+| 33 pages | 13,23 Mo | ❌ Échec | Aucune réponse pendant 5 min (timeout du proxy Render côté client), service ensuite injoignable (502 sur `/docs`), nécessite un redémarrage manuel (`render restart`) |
+| 90 pages (déjà testé section 12) | 33,1 Mo | ❌ Échec | ~90 s d'indisponibilité totale |
+
+**Constat clé** : le point de bascule se situe entre 6,62 Mo (fonctionne de façon répétée) et 9,85 Mo (plante systématiquement) - un écart de moins de 3,5 Mo. Le cas à 9,85 Mo est notable : il plante **sans que l'OCR soit impliqué**, uniquement à cause du parsing PyPDF2 d'une page contenant une image volumineuse. La taille du fichier est donc un facteur de crash indépendant, pas seulement une variable corrélée à l'usage de l'OCR.
+
+**Limite retenue : `MAX_UPLOAD_SIZE_BYTES = 8 Mo`** - au-dessus du cas à 6,9 Mo qui fonctionnait déjà (pas de régression), avec une marge de sécurité sous le point de bascule mesuré à 9,85 Mo.
+
+### Variable 2 : nombre de pages OCR (indépendamment de la taille)
+
+Testé séparément avec de vrais PDF 100% scannés (aucun texte natif, généré via Pillow - chaque page force donc un appel `pdf2image` + `pytesseract`), en gardant la taille de fichier volontairement minuscule pour isoler cette seule variable :
+
+| Fichier réel testé | Taille | Pages OCR requises | Résultat |
+|---|---|---|---|
+| 1 page scannée | 23 Ko | 1 | ❌ 502 en 5,1 s, process redémarré |
+| 5 pages scannées | 114 Ko | 5 | ❌ 502 en 4,8 s, process redémarré |
+| 12 pages scannées | 288 Ko | 12 | ❌ 502 en 4,9 s, process redémarré |
+
+**Constat clé, sans ambiguïté** : **une seule page OCR, sur un fichier de 23 Ko, fait planter le service en ~5 secondes** - exactement la même signature de crash (502, redémarrage complet du process, aucune ligne de log applicative pour la requête) que les crashs liés à la taille. Le nombre de pages OCR (1, 5 ou 12) ne change pratiquement rien au temps avant échec : c'est le premier appel à `pdf2image`/Tesseract qui est déjà fatal sur ce plan, pas une accumulation progressive. Le rendu d'image à 200 DPI et le sous-processus Tesseract dépassent visiblement la RAM disponible dès qu'ils s'ajoutent à la mémoire déjà occupée en permanence par les modèles ML (SentenceTransformer/FAISS/pandas chargés au démarrage).
+
+**Conclusion, différente de l'hypothèse initiale d'un simple plafond** : l'OCR n'est pas seulement "à limiter à N pages", il n'est **pas viable du tout** sur ce plan Render, à n'importe quel nombre de pages testé. **`MAX_OCR_PAGES = 0`** (OCR désactivé en production) plutôt qu'une valeur intermédiaire comme 5 (qui, mesuré, plante tout autant qu'une valeur plus élevée).
+
+### Décision et réversibilité
+
+Ce n'est pas un choix de prudence arbitraire mais la conséquence directe et sans ambiguïté des mesures ci-dessus. C'est en revanche une **perte de fonctionnalité réelle** en production : un PDF scanné (sans couche texte) ne sera plus traité du tout, même sur une seule page - signalé explicitement plutôt que décidé silencieusement. Le code OCR et les dépendances système (`tesseract-ocr`, `poppler-utils` dans le Dockerfile) restent en place : repasser à un plan Render avec plus de RAM ne nécessiterait qu'un changement de `MAX_OCR_PAGES`, sans modification de code ni reconstruction de l'image Docker.
+
+### Retest post-correctif (production)
+
+À faire après déploiement : reconfirmer que le PDF de test à 33 Mo (le cas ayant motivé cette investigation) est désormais rejeté proprement (413, pas de crash), et que le PDF de démonstration à ~7 Mo continue de fonctionner sous la nouvelle limite de 8 Mo.

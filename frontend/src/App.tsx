@@ -18,14 +18,18 @@ import { extractApiError } from './apiError';
 const MIN_LOADING_MS = 400;
 
 // Doivent rester synchronisées avec MAX_UPLOAD_SIZE_BYTES / MAX_OCR_PAGES
-// dans main.py : ajoutées après un OOM reproduit en conditions réelles sur
-// Render (plan gratuit) où un PDF de 33 Mo a rendu tout le backend
-// indisponible ~90s (voir DOCUMENTATION_TECHNIQUE.md). Le contrôle de
-// taille ici évite un aller-retour réseau inutile pour un fichier déjà
-// trop gros ; le backend revalide de toute façon (ce contrôle client ne
-// suffit pas seul, un utilisateur pourrait le contourner).
-const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
-const MAX_OCR_PAGES = 5;
+// dans main.py. Valeurs déterminées par des tests réels contre Render (pas
+// choisies par prudence) : 6,6-6,9 Mo fonctionne de façon répétée, 9,85 Mo
+// fait planter le service à coup sûr (502, process redémarré) - 8 Mo laisse
+// une marge des deux côtés. MAX_OCR_PAGES=0 : même 1 seule page OCR sur un
+// fichier de 23 Ko a fait planter le service en ~5s - l'OCR n'est pas
+// seulement plafonné, il est désactivé en production sur ce plan Render
+// (voir DOCUMENTATION_TECHNIQUE.md pour la méthodologie complète). Le
+// contrôle de taille ici évite un aller-retour réseau inutile pour un
+// fichier déjà trop gros ; le backend revalide de toute façon (ce contrôle
+// client ne suffit pas seul, un utilisateur pourrait le contourner).
+const MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_OCR_PAGES = 0;
 
 export default function App() {
   const [claim, setClaim] = useState("");
@@ -147,7 +151,9 @@ export default function App() {
       if (hasPageIssue) {
         messages.push(
           data.ocr_capped
-            ? `${data.pages_failed} page(s) sur ${data.pages_total} n'ont pas pu être lues (limite de reconnaissance de texte scanné : ${MAX_OCR_PAGES} pages max par document).`
+            ? (MAX_OCR_PAGES > 0
+                ? `${data.pages_failed} page(s) sur ${data.pages_total} n'ont pas pu être lues (limite de reconnaissance de texte scanné : ${MAX_OCR_PAGES} pages max par document).`
+                : `${data.pages_failed} page(s) sur ${data.pages_total} n'ont pas pu être lues : la reconnaissance de texte scanné (OCR) n'est pas disponible sur cet environnement.`)
             : `${data.pages_failed} page(s) sur ${data.pages_total} n'ont pas pu être lues (page vide ou scan illisible).`
         );
       }

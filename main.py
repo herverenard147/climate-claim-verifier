@@ -605,17 +605,40 @@ def check_claims_batch(request: BatchClaimRequest):
     return results
 
 
-# Limites anti-crash sur l'upload, ajoutées après un OOM reproduit en
-# conditions réelles sur Render (plan gratuit, RAM limitée) : un PDF de 7 Mo
-# a fait planter le backend deux fois, un PDF de 33 Mo (5 pages fusionnées)
-# l'a fait planter avec une coupure de service plus longue (~90s
-# d'indisponibilité totale, y compris /docs, le temps du redémarrage).
-# Aucune des deux limites ci-dessous ne dépend de l'autre : la taille borne
-# la mémoire prise par le fichier lui-même, MAX_OCR_PAGES borne le coût
-# CPU/RAM du fallback OCR (rendu image 200dpi + Tesseract par page), qui
-# reste le poste le plus coûteux même sur un petit fichier très scanné.
-MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024  # 5 Mo
-MAX_OCR_PAGES = 5
+# Limites anti-crash sur l'upload - valeurs déterminées par des mesures
+# réelles contre l'instance Render déployée (plan gratuit, RAM limitée), pas
+# choisies par prudence arbitraire. Méthodologie et données complètes dans
+# DOCUMENTATION_TECHNIQUE.md section 14 ; résumé ci-dessous.
+#
+# MAX_UPLOAD_SIZE_BYTES (8 Mo) : bissection réelle entre un point qui
+# fonctionne de façon répétée (6,6-6,9 Mo, ~20-25s, plusieurs fois) et un
+# point qui fait systématiquement planter le service (9,85 Mo, 502 en 16s,
+# process redémarré, AUCUNE ligne de log applicative - même signature OOM
+# que le crash à 33 Mo déjà documenté). 8 Mo laisse une marge sous 9,85 Mo
+# tout en restant au-dessus du cas à 7 Mo qui fonctionnait déjà (pas de
+# régression). Fait notable : le fichier à 9,85 Mo plante SANS que l'OCR
+# soit impliqué (la page volumineuse en cause a du texte natif extractible,
+# donc pas de fallback OCR) - la taille du fichier reste un facteur de
+# crash indépendant de MAX_OCR_PAGES, pas seulement corrélé à lui.
+#
+# MAX_OCR_PAGES (0, OCR désactivé) : à l'origine fixé à 5 par estimation,
+# retesté avec de vrais PDF 100% scannés (aucun texte natif, donc OCR
+# obligatoire sur chaque page) directement contre Render. Résultat sans
+# ambiguïté : MÊME 1 SEULE page OCR, sur un fichier de 23 Ko, fait planter
+# le service en ~5s (502, process redémarré, même signature OOM). Testé
+# aussi à 5 et 12 pages OCR (mêmes résultats, ~5s à chaque fois - le
+# nombre de pages OCR au-delà de 1 ne change rien, c'est le premier appel
+# à pdf2image/Tesseract qui est déjà fatal sur ce plan). Le rendu d'image
+# 200dpi + le sous-processus Tesseract dépassent visiblement la RAM
+# disponible dès qu'ils s'ajoutent à la mémoire déjà occupée par les
+# modèles ML chargés en permanence (SentenceTransformer/FAISS/pandas).
+# Conclusion : l'OCR n'est pas seulement "à plafonner", il n'est pas
+# viable du tout sur ce plan Render - décision structurante (fonctionnalité
+# perdue pour les PDF scannés en production) signalée explicitement,
+# pas prise silencieusement. Réversible instantanément si le plan Render
+# change (aucune autre modification de code nécessaire).
+MAX_UPLOAD_SIZE_BYTES = 8 * 1024 * 1024  # 8 Mo
+MAX_OCR_PAGES = 0
 
 
 @app.post("/api/upload-pdf")
