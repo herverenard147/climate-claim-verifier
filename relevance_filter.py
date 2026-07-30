@@ -139,6 +139,60 @@ def extract_entities(text: str) -> set:
     return extract_geo_entities(text) | extract_theme_entities(text)
 
 
+# Libellés français lisibles des identifiants canoniques ci-dessus, utilisés
+# pour générer un raisonnement claim/evidence en langage naturel (voir
+# build_analyse_text dans main.py) SANS jamais recopier le texte brut de
+# l'evidence : on ne réutilise que les entités déjà détectées, jamais la
+# citation elle-même.
+ENTITY_LABELS = {
+    "cote_ivoire": "la Côte d'Ivoire",
+    "abidjan": "Abidjan",
+    "cocody": "Cocody",
+    "bouake": "Bouaké",
+    "korhogo": "Korhogo",
+    "yamoussoukro": "Yamoussoukro",
+    "grand_bassam": "Grand-Bassam",
+    "san_pedro": "San-Pédro",
+    "afrique_ouest": "l'Afrique de l'Ouest",
+    "afrique_subsaharienne": "l'Afrique subsaharienne",
+    "senegal": "le Sénégal",
+    "dakar": "Dakar",
+    "somalie": "la Somalie",
+    "corne_afrique": "la Corne de l'Afrique",
+    "kenya": "le Kenya",
+    "ghana": "le Ghana",
+    "kumasi": "Kumasi",
+    "nigeria": "le Nigeria",
+    "mali": "le Mali",
+    "burkina_faso": "le Burkina Faso",
+    "guinee": "la Guinée",
+    "liberia": "le Liberia",
+    "congo": "le Congo",
+    "goma": "Goma",
+    "pluie": "les précipitations",
+    "temperature": "les températures",
+    "secheresse": "la sécheresse",
+    "inondation": "les inondations",
+    "chaleur": "les vagues de chaleur",
+    "niveau_mer": "le niveau de la mer",
+    "rechauffement": "le réchauffement climatique",
+    "paludisme": "le paludisme",
+    "recolte": "les récoltes",
+    "cacao": "la production de cacao",
+}
+
+
+def describe_entities(ids: set) -> str:
+    """Rend un ensemble d'identifiants canoniques en une liste lisible en
+    français ("X, Y et Z"). Chaîne vide si l'ensemble est vide."""
+    labels = sorted(ENTITY_LABELS.get(i, i) for i in ids)
+    if not labels:
+        return ""
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels[:-1]) + " et " + labels[-1]
+
+
 def is_relevance_uncertain(claim: str, evidence: str) -> bool:
     """
     Décision en deux signaux séparés (géo, thème), pas un ensemble combiné :

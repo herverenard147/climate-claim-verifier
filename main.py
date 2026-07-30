@@ -12,7 +12,13 @@ import io
 import os
 import unicodedata
 from typing import List, Optional
-from relevance_filter import is_relevance_uncertain, extract_entities
+from relevance_filter import (
+    is_relevance_uncertain,
+    extract_entities,
+    extract_geo_entities,
+    extract_theme_entities,
+    describe_entities,
+)
 import history_store
 
 # OCR de repli pour les pages PDF sans couche texte (scan/image). Import
@@ -85,36 +91,124 @@ def normalize_comprehension_level(level: str) -> str:
     return normalized if normalized in COMPREHENSION_LEVELS else "intermediaire"
 
 
+# Verbe/tournure reliant le claim à l'evidence top-1, par niveau, pour les
+# trois buckets où une source top-1 existe réellement (AUCUNE_PREUVE est
+# volontairement exclu : par construction, aucune source n'est retenue sous
+# le seuil anti-hallucination, donc aucun raisonnement claim/evidence n'a de
+# sens à ce niveau - voir check_claim).
+_VERDICT_CONNECTORS = {
+    "CONFIRME": {
+        "debutant": "va dans le même sens que",
+        "intermediaire": "corrobore",
+        "amateur": "corrobore",
+    },
+    "REFUTE": {
+        "debutant": "dit le contraire de",
+        "intermediaire": "contredit",
+        "amateur": "contredit",
+    },
+    "INSUFFISANT": {
+        "debutant": "parle d'un sujet proche, sans confirmer ni contredire clairement",
+        "intermediaire": "aborde un sujet connexe sans confirmer ni infirmer explicitement",
+        "amateur": "aborde un sujet connexe sans confirmer ni infirmer explicitement",
+    },
+}
+
+
+def _build_reasoning(claim: str, evidence: str, institution: str, verdict_bucket: str,
+                      similarity_score: float, relevance_uncertain: bool) -> dict:
+    """
+    Construit, pour chacun des 4 niveaux, une phrase reliant explicitement le
+    claim à l'evidence top-1 (pas seulement le verdict et le nom de la
+    source) — à partir des entités géo/thème détectées dans le claim et
+    l'evidence (voir relevance_filter.py), JAMAIS en recopiant le texte de
+    l'evidence : celui-ci est déjà affiché tel quel juste en dessous (citation
+    dans SourcesAccordion), un raisonnement qui le recopierait n'apporterait
+    rien de nouveau à l'utilisateur.
+
+    Si relevance_uncertain est vrai (le claim vise une entité géographique
+    précise absente de cette evidence), le rapprochement est explicitement
+    présenté comme large/régional plutôt que direct — ne jamais laisser
+    croire à une correspondance exacte qui n'existe pas.
+    """
+    if verdict_bucket not in _VERDICT_CONNECTORS:
+        return {}
+
+    claim_geo = extract_geo_entities(claim)
+    evidence_geo = extract_geo_entities(evidence)
+    evidence_theme = extract_theme_entities(evidence)
+    claim_theme = extract_theme_entities(claim)
+
+    theme_desc = describe_entities(evidence_theme) or describe_entities(claim_theme) or "le sujet climatique évoqué"
+
+    if relevance_uncertain and claim_geo:
+        evidence_scope = describe_entities(evidence_geo) if evidence_geo else "une zone plus large, non précisée par cette source"
+        claim_scope = describe_entities(claim_geo)
+        scope_clause = f"à l'échelle de {evidence_scope} plutôt que spécifiquement de {claim_scope}"
+        scope_clause_short = f"portée régionale ({evidence_scope}), pas nationale/locale ({claim_scope})"
+        directness = "indirect"
+    elif evidence_geo:
+        scope_clause = f"portant sur {describe_entities(evidence_geo)}"
+        scope_clause_short = f"portée géographique alignée ({describe_entities(evidence_geo)})"
+        directness = "direct"
+    else:
+        scope_clause = "sans préciser de zone géographique particulière"
+        scope_clause_short = "portée géographique non précisée par la source"
+        directness = "direct"
+
+    connector = _VERDICT_CONNECTORS[verdict_bucket]
+
+    debutant = (
+        f"Le rapport de {institution} porte sur {theme_desc}, {scope_clause} : "
+        f"cela {connector['debutant']} ce que vous avez affirmé."
+    )
+    intermediaire = (
+        f"La source la plus proche ({institution}) porte sur {theme_desc}, {scope_clause}. "
+        f"Ce contenu {connector['intermediaire']} votre affirmation."
+    )
+    amateur = (
+        f"Avec un score de similarité de {similarity_score:.2f} entre votre affirmation et la source la plus "
+        f"proche ({institution}, {theme_desc}), le rapprochement est {directness} : {scope_clause_short}."
+    )
+    expert = f"le rapprochement s'appuie sur {theme_desc} ({scope_clause_short})"
+
+    return {"debutant": debutant, "intermediaire": intermediaire, "amateur": amateur, "expert": expert}
+
+
 def build_analyse_text(verdict_bucket: str, level: str, similarity_score: float,
                         raw_verdict: Optional[str] = None,
                         probabilities: Optional[dict] = None,
-                        nb_sources: int = 0):
+                        nb_sources: int = 0,
+                        claim: str = "", evidence: str = "", institution: str = "",
+                        relevance_uncertain: bool = False):
     """
     Formate le texte d'analyse (et, pour amateur/expert, des détails
     techniques) selon le niveau de compréhension, à partir d'un verdict DÉJÀ
     décidé — cette fonction ne relance JAMAIS la classification ni le calcul
     du score : verdict_bucket/similarity_score/raw_verdict/probabilities lui
     sont passés tels quels par check_claim(), qui ne les calcule qu'une
-    seule fois. Un seul verdict, quatre présentations.
+    seule fois. Un seul verdict, quatre présentations — chacune incluant
+    désormais un raisonnement reliant explicitement le claim à la source
+    top-1 (voir _build_reasoning), pas seulement le verdict brut.
     """
     templates = {
         "CONFIRME": {
-            "debutant": "✅ Cette affirmation est confirmée ! Les scientifiques du climat sont d'accord avec ce qui est dit ici. Cette information vient de sources fiables (comme le GIEC ou l'OMM), donc vous pouvez lui faire confiance.",
-            "intermediaire": "L'information soumise est exacte et validée par le consensus scientifique actuel. Les recherches climatiques corroborent formellement cette dynamique. Ces observations soulignent la nécessité d'intégrer ces risques dans les plans d'adaptation locaux et les politiques de résilience.",
-            "amateur": "L'information soumise est exacte et validée par le consensus scientifique actuel. Le système l'a comparée à {nb_sources} source(s) institutionnelle(s), avec un score de similarité sémantique de {score:.2f} entre la déclaration et la source la plus proche (le seuil minimal pour considérer une correspondance valide est de 0.20).",
-            "expert": "Verdict : SUPPORTS (classification NLI). Score cosinus top-1 : {score:.4f} (seuil anti-hallucination : 0.20, franchi). Probabilités par classe : {proba_str}. Nombre de sources retenues pour l'affichage : {nb_sources}.",
+            "debutant": "✅ Cette affirmation est confirmée ! {reasoning} Cette information vient de sources fiables (comme le GIEC ou l'OMM), donc vous pouvez lui faire confiance.",
+            "intermediaire": "L'information soumise est exacte et validée par le consensus scientifique actuel. {reasoning} Ces observations soulignent la nécessité d'intégrer ces risques dans les plans d'adaptation locaux et les politiques de résilience.",
+            "amateur": "L'information soumise est exacte et validée par le consensus scientifique actuel. {reasoning} Le système a consulté {nb_sources} source(s) institutionnelle(s) au total (le seuil minimal pour une correspondance valide est de 0.20).",
+            "expert": "Verdict : SUPPORTS (classification NLI). Score cosinus top-1 : {score:.4f} (seuil anti-hallucination : 0.20, franchi). Correspondance claim/evidence : {reasoning}. Probabilités par classe : {proba_str}. Nombre de sources retenues pour l'affichage : {nb_sources}.",
         },
         "REFUTE": {
-            "debutant": "❌ Cette affirmation est fausse. Les données scientifiques sur le climat montrent le contraire de ce qui est dit ici. Attention à ne pas partager cette information sans la corriger.",
-            "intermediaire": "L'information soumise est inexacte ou trompeuse. Les données climatologiques démentent formellement cette déclaration. Il est crucial de corriger cette communication afin de ne pas fausser l'évaluation des vulnérabilités climatiques.",
-            "amateur": "L'information soumise est inexacte ou trompeuse. Le système l'a comparée à {nb_sources} source(s) institutionnelle(s), avec un score de similarité sémantique de {score:.2f} entre la déclaration et la source la plus proche.",
-            "expert": "Verdict : REFUTES (classification NLI). Score cosinus top-1 : {score:.4f} (seuil anti-hallucination : 0.20, franchi). Probabilités par classe : {proba_str}. Nombre de sources retenues pour l'affichage : {nb_sources}.",
+            "debutant": "❌ Cette affirmation est fausse. {reasoning} Attention à ne pas partager cette information sans la corriger.",
+            "intermediaire": "L'information soumise est inexacte ou trompeuse. {reasoning} Il est crucial de corriger cette communication afin de ne pas fausser l'évaluation des vulnérabilités climatiques.",
+            "amateur": "L'information soumise est inexacte ou trompeuse. {reasoning} Le système a consulté {nb_sources} source(s) institutionnelle(s) au total.",
+            "expert": "Verdict : REFUTES (classification NLI). Score cosinus top-1 : {score:.4f} (seuil anti-hallucination : 0.20, franchi). Correspondance claim/evidence : {reasoning}. Probabilités par classe : {proba_str}. Nombre de sources retenues pour l'affichage : {nb_sources}.",
         },
         "INSUFFISANT": {
-            "debutant": "⚠️ On ne peut pas dire si c'est vrai ou faux avec certitude. Les documents scientifiques parlent d'un sujet proche, mais ne répondent pas exactement à cette question précise. Regardez les sources ci-dessous pour vous faire votre propre idée.",
-            "intermediaire": "Les documents institutionnels (GIEC, OMM, etc.) traitent de sujets connexes, mais ils ne permettent pas de confirmer ou de réfuter explicitement et directement cette affirmation précise. Une analyse humaine des documents sourcés ci-dessous est recommandée.",
-            "amateur": "Les documents institutionnels traitent de sujets connexes sans trancher explicitement. Le système a consulté {nb_sources} source(s), avec un score de similarité sémantique de {score:.2f} (au-dessus du seuil de 0.20, mais le classificateur n'a pas identifié de confirmation ou de réfutation nette).",
-            "expert": "Verdict : NOT_ENOUGH_INFO (classification NLI). Score cosinus top-1 : {score:.4f} (seuil anti-hallucination : 0.20, franchi). Probabilités par classe : {proba_str}. Nombre de sources retenues pour l'affichage : {nb_sources}.",
+            "debutant": "⚠️ On ne peut pas dire si c'est vrai ou faux avec certitude. {reasoning} Regardez les sources ci-dessous pour vous faire votre propre idée.",
+            "intermediaire": "Les documents institutionnels (GIEC, OMM, etc.) traitent de sujets connexes, mais ils ne permettent pas de confirmer ou de réfuter explicitement et directement cette affirmation précise. {reasoning} Une analyse humaine des documents sourcés ci-dessous est recommandée.",
+            "amateur": "Les documents institutionnels traitent de sujets connexes sans trancher explicitement. {reasoning} Le système a consulté {nb_sources} source(s) au total (score au-dessus du seuil de 0.20, mais le classificateur n'a pas identifié de confirmation ou de réfutation nette).",
+            "expert": "Verdict : NOT_ENOUGH_INFO (classification NLI). Score cosinus top-1 : {score:.4f} (seuil anti-hallucination : 0.20, franchi). Correspondance claim/evidence : {reasoning}. Probabilités par classe : {proba_str}. Nombre de sources retenues pour l'affichage : {nb_sources}.",
         },
         "AUCUNE_PREUVE": {
             "debutant": "⚠️ Aucune source scientifique ne parle de ce sujet précis. On ne peut donc pas vérifier cette affirmation avec les documents disponibles — méfiance.",
@@ -128,7 +222,12 @@ def build_analyse_text(verdict_bucket: str, level: str, similarity_score: float,
     if probabilities:
         proba_str = ", ".join(f"{cls}={p:.3f}" for cls, p in probabilities.items())
 
-    text = templates[verdict_bucket][level].format(score=similarity_score, nb_sources=nb_sources, proba_str=proba_str)
+    reasoning_by_level = _build_reasoning(claim, evidence, institution, verdict_bucket, similarity_score, relevance_uncertain)
+
+    text = templates[verdict_bucket][level].format(
+        score=similarity_score, nb_sources=nb_sources, proba_str=proba_str,
+        reasoning=reasoning_by_level.get(level, ""),
+    )
 
     technical_details = None
     if level in ("amateur", "expert"):
@@ -320,10 +419,19 @@ def check_claim(request: ClaimRequest):
         # Couche de formatage selon le niveau de compréhension : le verdict
         # (verdict_bucket), le score et les probabilités sont déjà figés
         # ci-dessus, calculés une seule fois quel que soit le niveau demandé.
+        # Le raisonnement claim/evidence porte sur la source top-1 D'ORIGINE
+        # (top_evidence_row, avant repondération zone_geo éventuelle des
+        # sources AFFICHÉES ci-dessus) : c'est elle qui a réellement servi au
+        # seuil anti-hallucination et à la classification, donc la seule
+        # dont le rapprochement avec le claim a un sens à expliquer.
+        top_institution = str(top_evidence_row.get('institution', 'une source institutionnelle'))
+        top_relevance_uncertain = is_relevance_uncertain(request.claim, top_evidence) if similarity_score >= 0.20 else False
         level = normalize_comprehension_level(request.comprehension_level)
         analyse_text, technical_details = build_analyse_text(
             verdict_bucket, level, similarity_score,
-            raw_verdict=raw_verdict, probabilities=probabilities, nb_sources=len(sources)
+            raw_verdict=raw_verdict, probabilities=probabilities, nb_sources=len(sources),
+            claim=request.claim, evidence=str(top_evidence), institution=top_institution,
+            relevance_uncertain=top_relevance_uncertain,
         )
 
         # Sauvegarde dans l'historique personnel : TELLE QUELLE, la réponse
