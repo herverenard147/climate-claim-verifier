@@ -1,24 +1,41 @@
 import React, { useState } from 'react';
-import { Share2, Check, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Share2, Check, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { shareOrCopy } from '../shareText';
 import { API_BASE_URL } from '../config';
+import { extractApiError } from '../apiError';
 
 export default function VerdictCard({ result, userId }: { result: any; userId: string }) {
   const [copied, setCopied] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState<'up' | 'down' | null>(null);
+  const [feedbackPending, setFeedbackPending] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
 
   const handleFeedback = async (rating: 'up' | 'down') => {
-    if (!result.verification_id || feedbackSent) return;
+    if (!result.verification_id || feedbackSent || feedbackPending) return;
+    setFeedbackPending(true);
+    setFeedbackError('');
     try {
       const res = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ verification_id: result.verification_id, user_id: userId, rating }),
       });
-      if (res.ok) setFeedbackSent(rating);
+      if (res.ok) {
+        setFeedbackSent(rating);
+      } else {
+        // Le verdict déjà affiché reste lisible même en cas d'échec (le
+        // feedback est une fonctionnalité annexe), mais l'échec doit rester
+        // visible : avant ce correctif, le backend pouvait renvoyer un motif
+        // clair (ex. "Vérification introuvable") sans qu'il soit jamais
+        // affiché, et les boutons restaient cliquables sans aucune
+        // explication du pourquoi rien ne se passait.
+        const data = await res.json().catch(() => null);
+        setFeedbackError(extractApiError(data, "Échec de l'envoi du retour."));
+      }
     } catch (err) {
-      // Le feedback est une fonctionnalité annexe : un échec silencieux ici
-      // ne doit pas interrompre la lecture du verdict déjà affiché.
+      setFeedbackError('Impossible de contacter le serveur pour envoyer ce retour.');
+    } finally {
+      setFeedbackPending(false);
     }
   };
 
@@ -87,23 +104,29 @@ export default function VerdictCard({ result, userId }: { result: any; userId: s
           voir main.py). Simplement collecté pour l'instant (voir
           DOCUMENTATION_TECHNIQUE.md), pas encore exploité. */}
       {result.verification_id && (
-        <div className="mt-6 pt-6 border-t border-[#F1F5F9] flex items-center gap-3">
-          <span className="text-sm text-[#64748B] font-medium">Ce verdict vous a-t-il été utile ?</span>
-          <button
-            onClick={() => handleFeedback('up')}
-            disabled={!!feedbackSent}
-            className={`p-2 rounded-lg transition-all ${feedbackSent === 'up' ? 'bg-[#059669] text-white' : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'} disabled:cursor-not-allowed`}
-          >
-            <ThumbsUp className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleFeedback('down')}
-            disabled={!!feedbackSent}
-            className={`p-2 rounded-lg transition-all ${feedbackSent === 'down' ? 'bg-[#DC2626] text-white' : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'} disabled:cursor-not-allowed`}
-          >
-            <ThumbsDown className="w-4 h-4" />
-          </button>
-          {feedbackSent && <span className="text-xs text-[#94A3B8]">Merci pour votre retour !</span>}
+        <div className="mt-6 pt-6 border-t border-[#F1F5F9]">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-[#64748B] font-medium">Ce verdict vous a-t-il été utile ?</span>
+            <button
+              onClick={() => handleFeedback('up')}
+              disabled={!!feedbackSent || feedbackPending}
+              className={`p-2 rounded-lg transition-all ${feedbackSent === 'up' ? 'bg-[#059669] text-white' : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'} disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <ThumbsUp className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleFeedback('down')}
+              disabled={!!feedbackSent || feedbackPending}
+              className={`p-2 rounded-lg transition-all ${feedbackSent === 'down' ? 'bg-[#DC2626] text-white' : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'} disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <ThumbsDown className="w-4 h-4" />
+            </button>
+            {feedbackPending && <Loader2 className="w-4 h-4 text-[#94A3B8] animate-spin" />}
+            {feedbackSent && <span className="text-xs text-[#94A3B8]">Merci pour votre retour !</span>}
+          </div>
+          {feedbackError && (
+            <p className="text-xs text-red-600 mt-2">{feedbackError} <button onClick={() => setFeedbackError('')} className="underline">Réessayer</button></p>
+          )}
         </div>
       )}
     </div>

@@ -8,6 +8,13 @@ import HistoryPanel from './components/HistoryPanel';
 import BatchPanel from './components/BatchPanel';
 import { API_BASE_URL } from './config';
 import { getUserId } from './userId';
+import { extractApiError } from './apiError';
+
+// Un aller-retour API réussi peut être très rapide (quelques centaines de ms
+// une fois les modèles chauds) : sans plancher, le spinner apparaît et
+// disparaît trop vite pour être perçu, donnant l'impression qu'il ne s'est
+// rien passé. On garantit qu'il reste visible au moins ce délai.
+const MIN_LOADING_MS = 400;
 
 export default function App() {
   const [claim, setClaim] = useState("");
@@ -28,6 +35,7 @@ export default function App() {
     setIsVerifying(true);
     setError("");
     setResult(null);
+    const startedAt = Date.now();
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/check-claim`, {
@@ -35,8 +43,13 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ claim: text, zone_geo: zoneGeo, comprehension_level: comprehensionLevel, user_id: userId })
       });
-      if (!response.ok) throw new Error("Erreur serveur lors de la vérification.");
       const data = await response.json();
+      // Le corps de la réponse est lu AVANT de vérifier response.ok : sinon
+      // le message d'erreur précis renvoyé par le backend (ex. "La
+      // déclaration est vide.") est perdu et remplacé par un message
+      // générique, alors qu'il était déjà disponible - même défaut que celui
+      // corrigé sur l'upload de document.
+      if (!response.ok) throw new Error(extractApiError(data, "Erreur serveur lors de la vérification."));
       // On rattache la déclaration vérifiée à `result` (l'API ne la renvoie pas
       // elle-même) : nécessaire pour que l'export/partage du verdict puisse
       // citer l'affirmation d'origine sans dépendre du state `claim`, qui peut
@@ -45,6 +58,10 @@ export default function App() {
     } catch (err: any) {
       setError(err.message);
     } finally {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_MS - elapsed));
+      }
       setIsVerifying(false);
     }
   };
@@ -68,7 +85,7 @@ export default function App() {
         body: formData
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Erreur lors de la lecture du document.");
+      if (!response.ok) throw new Error(extractApiError(data, "Erreur lors de la lecture du document."));
       setClaim(data.extracted_text);
       setUploadSuccess(`« ${file.name} » analysé : le texte extrait a été inséré ci-dessous.`);
     } catch (err: any) {

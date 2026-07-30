@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { History, Share2, X } from 'lucide-react';
+import { History, Share2, X, Loader2, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { shareOrCopy } from '../shareText';
 
@@ -50,8 +50,16 @@ export default function HistoryPanel({ userId, onClose }: { userId: string; onCl
           </button>
         </div>
 
-        {loading && <p className="text-[#64748B]">Chargement...</p>}
-        {error && <p className="text-red-600">{error}</p>}
+        {loading && (
+          <p className="text-[#64748B] flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Chargement de votre historique...
+          </p>
+        )}
+        {error && (
+          <p className="text-red-600 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+          </p>
+        )}
         {!loading && !error && entries.length === 0 && (
           <p className="text-[#64748B]">Aucune vérification enregistrée pour l'instant.</p>
         )}
