@@ -404,3 +404,56 @@ Le seuil anti-hallucination (0.20, section 4) se comporte comme documenté pour 
 | Publish directory | — | `frontend/dist` |
 | Variables d'env clés | `CORS_ORIGINS` | `VITE_API_BASE_URL` |
 | Plan | Free | Free (les sites statiques Render sont gratuits par nature) |
+
+## 13. Détection heuristique des saisies multiples/ambiguës
+
+### Constat à l'origine de cette section
+
+TERRAVA-AI n'a aucune capacité de raisonnement ou de désambiguïsation d'intention : une phrase entre dans le pipeline, un vecteur en sort, comparé au corpus (voir section 1). Si un utilisateur saisit plusieurs affirmations mélangées dans un seul champ — cas plausible pour un débutant, ou pour une transcription vocale longue et peu structurée (voir section 10) —, tout le texte est encodé en un seul vecteur "moyen".
+
+**Mesuré en conditions réelles avant tout développement** (pas supposé) : le claim composite *"Le rechauffement climatique est cause par les activites humaines. La banquise arctique augmente chaque annee depuis 1980."* (une affirmation vraie + une affirmation fausse) obtient un verdict **CONFIRMÉ PAR LES DONNÉES SCIENTIFIQUES** (score cosinus 0.5855, classe NLI `SUPPORTS`) — un verdict confiant portant en réalité sur les deux affirmations à la fois, alors que la seconde est fausse. Une simple question (*"Est-ce que le climat change vraiment ?"*) obtient elle aussi un verdict confiant (`CONFIRMÉ`, score 0.429) au lieu d'un signal indiquant qu'il ne s'agit pas d'une affirmation vérifiable.
+
+### Principe : détection par motifs de surface, pas de compréhension du sens
+
+`input_heuristics.py` implémente `detect_input_issue()`, appelée par `check_claim()` **avant** tout calcul d'embedding. Aucun modèle supplémentaire entraîné, aucun appel LLM externe (cohérent avec le positionnement zéro-GPU du projet) — uniquement des règles explicables :
+
+| Type détecté | Règle | Limite assumée |
+|---|---|---|
+| `multiple` | Découpage par ponctuation forte (`.!?`) puis par quelques conjonctions de coordination fréquentes (`et`, `mais`, `donc`, `car`, `puis`) ; retenu si ≥2 segments de 4 mots ou plus | Découpage naïf : une conjonction interne à une expression ("l'Afrique de l'Ouest et du Centre") peut produire un faux segment — atténué par le filtre de longueur minimale, pas éliminé. `ou`/`or` volontairement exclus (trop ambigus). |
+| `vague` (`too_short`) | Moins de 3 mots | Un fragment de 3 mots légitime mais rare serait laissé passer ; un fragment de 2 mots répété (nom propre composé) serait bloqué à tort |
+| `vague` (`question`) | Termine par `?`, ou contient une tournure interrogative (`est-ce que`, `pourquoi`...), ou commence par un mot interrogatif | Une phrase déclarative citant accidentellement l'un de ces mots ailleurs qu'en tête pourrait être mal classée |
+| `vague` (`command`) | Commence par un verbe d'instruction fréquent (`vérifie`, `dis-moi`, `explique`...) | Détection par préfixe uniquement, liste fermée de verbes |
+| `incoherent` (`symbols`) | Plus de 50% de caractères non alphabétiques (hors espaces) | Un texte scientifique légitime très dense en chiffres/symboles pourrait être signalé à tort |
+| `incoherent` (`no_function_words`) | Texte de 3+ mots ne contenant AUCUN mot-outil français/anglais fréquent (`le`, `la`, `est`, `the`, `and`...) | Une phrase dans une langue absente de cette liste restreinte (espagnol, wolof...) serait signalée à tort comme incohérente — aucune détection de langue réelle |
+
+**Vérifié avec `melange langues`** (*"The climate change est vraiment un grand probleme worldwide today"*, français+anglais) : correctement **non** signalé (`ok`), car il contient des mots-outils anglais reconnus — la détection ne pénalise pas le mélange de langues en soi, seulement l'absence de tout mot-outil reconnu.
+
+### Guidage, jamais de blocage
+
+Quand `detect_input_issue()` renvoie un type différent de `ok`, `check_claim()` ne lance **pas** le pipeline de classification : il renvoie `{"needs_guidance": true, "guidance_type": ..., "segments": [...], "message": "..."}` à la place d'un verdict (la route n'a plus de `response_model` unique — elle peut renvoyer l'un ou l'autre). Le frontend (`GuidanceCard.tsx`) affiche ce message avec des **choix fermés uniquement** (boutons), jamais un champ de dialogue libre — le système ne peut pas tenir une conversation. Pour une saisie `multiple` : un bouton par segment détecté (vérifie ce segment seul), un bouton "Vérifier tous séparément" (pré-remplit la Vérification par lot, voir section précédente, avec un segment par ligne), et toujours un bouton "Envoyer tel quel quand même".
+
+Le contournement passe par le champ `force: true` de `ClaimRequest`, qui saute entièrement la détection. Deux origines : le clic utilisateur sur "Envoyer tel quel", et l'appel interne de `check_claims_batch()` — chaque ligne d'un lot est déjà une affirmation séparée par construction (convention "une ligne = un claim"), la re-détecter serait redondant et le composant `BatchPanel` ne peut de toute façon pas afficher de guidage interactif par ligne (il attend un verdict immédiat).
+
+### Message distinct pour un texte incohérent (vs `NON VÉRIFIABLE`)
+
+Un verdict `NON VÉRIFIABLE` existant signifie *"affirmation compréhensible, mais absente du corpus institutionnel"* (score cosinus < 0.20, section 4). Un texte `incoherent` (charabia, emojis seuls, chiffres seuls) n'est **pas la même chose** : le texte lui-même n'a pas pu être interprété comme une phrase, indépendamment de ce que contient le corpus. Le message affiché le précise explicitement (*"ceci diffère d'un verdict « non vérifiable »..."*) pour ne pas induire l'utilisateur en erreur sur la cause réelle.
+
+### Application à la voix et à l'upload (sans code dédié)
+
+La détection s'applique automatiquement au texte issu de la dictée vocale et de l'extraction PDF/TXT, **sans logique spécifique à ces sources** : le texte transcrit ou extrait pré-remplit le même champ `claim` que la saisie manuelle, et `check_claim()` détecte sur le texte final soumis, quelle que soit son origine. Vérifié réellement (Playwright, transcription vocale simulée) : un texte dicté contenant deux affirmations mélangées déclenche le même `GuidanceCard` qu'une saisie manuelle identique.
+
+### Tests de robustesse (cas limites, hors du cadre "normal")
+
+Testés contre l'API réelle, aucune erreur 500 brute ni trace serveur visible dans aucun cas :
+
+| Saisie | Résultat |
+|---|---|
+| Charabia (`"xyzzy foobar quux plonk zorp glorp"`) | `incoherent` / `no_function_words` |
+| Emojis seuls, chiffres seuls, ponctuation seule (`"!!!???..."`) | `incoherent` / `symbols` |
+| Texte très long (plusieurs phrases mêlant claims et remplissage sans rapport) | `multiple` (découpage correct malgré le bruit) |
+| Artefacts de mise en forme (tabulations, retours à la ligne multiples) | Traité normalement si le contenu reste cohérent ; `multiple` si plusieurs affirmations s'y trouvent |
+| Commande (`"vérifie que la Terre est ronde stp"`) | `vague` / `command` |
+| Vide / espaces seuls | `HTTP 400` inchangé (comportement pré-existant) |
+| Transcription vocale bruitée (mots isolés sans lien réel) | Non détectée comme incohérente dans un cas testé, car elle contenait accidentellement un mot-outil reconnu (`être`) — traitée comme une affirmation normale, verdict `PREUVES INDIRECTES`. **Limite assumée et documentée**, pas un bug : la détection ne comprend pas le sens, un mot-outil isolé suffit à la faire passer. |
+
+Aucun cas testé n'a produit de plantage, d'erreur technique brute, ou de réponse incompréhensible — objectif du point 7 de la mission, distinct de "comprendre" ces cas.

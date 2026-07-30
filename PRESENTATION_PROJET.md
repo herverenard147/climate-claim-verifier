@@ -74,6 +74,8 @@ Avant chaque vérification, on choisit un niveau — **débutant, intermédiaire
 
 Chaque utilisateur retrouve aussi ses propres vérifications passées dans un **historique personnel** (sans compte ni mot de passe à créer — un simple identifiant conservé sur son navigateur), avec la possibilité de repartager n'importe quelle vérification déjà effectuée. L'idée : permettre de suivre sa propre progression, de revenir sur une affirmation vérifiée plus tôt, et de partager ce qu'on a appris — pas seulement d'obtenir une réponse ponctuelle.
 
+Ce volet pédagogique inclut aussi un **guidage sur la formulation de la saisie** : si le texte saisi (tapé ou dicté) semble contenir plusieurs affirmations mélangées, ressembler à une question plutôt qu'à une affirmation, ou être trop court ou incompréhensible pour être vérifié, TERRAVA-AI ne devine pas à la place de l'utilisateur et ne rend jamais un verdict global potentiellement trompeur sur un mélange d'affirmations — il propose des choix simples (vérifier chaque affirmation séparément, ou envoyer tel quel malgré tout) et un exemple concret de reformulation, sans jamais bloquer l'utilisateur pressé qui veut continuer tel quel.
+
 ---
 
 ## Limites actuelles, présentées honnêtement

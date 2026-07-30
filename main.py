@@ -19,6 +19,7 @@ from relevance_filter import (
     extract_theme_entities,
     describe_entities,
 )
+from input_heuristics import detect_input_issue, build_guidance_message
 import history_store
 
 # OCR de repli pour les pages PDF sans couche texte (scan/image). Import
@@ -255,6 +256,14 @@ class ClaimRequest(BaseModel):
     # sauvegardée dans l'historique (aucune régression pour un client qui
     # n'envoie pas ce champ).
     user_id: Optional[str] = None
+    # True quand l'utilisateur a explicitement choisi d'ignorer le guidage
+    # heuristique ("envoyer tel quel") ou quand l'appel vient du traitement
+    # par lot (voir check_claims_batch : chaque ligne y est déjà séparée par
+    # construction, la re-détecter serait redondant et casserait le contrat
+    # "un résultat immédiat par ligne" du batch, qui ne peut pas afficher de
+    # guidage interactif). Ne bloque jamais rien d'autre : ignorer la
+    # détection heuristique en amont, pas une clé d'administration.
+    force: bool = False
 
 class Source(BaseModel):
     institution: str
@@ -304,11 +313,32 @@ def load_models():
     except Exception as e:
         print(f"Erreur fatale lors du chargement des modèles : {e}")
 
-@app.post("/api/check-claim", response_model=VerificationResponse)
+@app.post("/api/check-claim")
 def check_claim(request: ClaimRequest):
     if not request.claim.strip():
         raise HTTPException(status_code=400, detail="La déclaration est vide.")
-        
+
+    # Détection heuristique (voir input_heuristics.py) AVANT tout calcul
+    # d'embedding : évite un verdict silencieusement trompeur sur une saisie
+    # multiple/vague/incohérente - vérifié en conditions réelles avant ce
+    # correctif qu'un mélange affirmation vraie + affirmation fausse pouvait
+    # produire un badge CONFIRMÉ (score 0.59) portant sur les deux à la fois.
+    # `force` contourne ce guidage (bouton "envoyer tel quel" côté frontend,
+    # ou appel interne depuis check_claims_batch) - jamais un blocage total.
+    # response_model retiré du décorateur : cette route peut renvoyer soit un
+    # verdict (VerificationResponse), soit une réponse de guidage (forme
+    # différente), FastAPI sérialise les deux sans schéma de réponse unique.
+    if not request.force:
+        issue = detect_input_issue(request.claim)
+        if issue["type"] != "ok":
+            return {
+                "needs_guidance": True,
+                "guidance_type": issue["type"],
+                "reason": issue["reason"],
+                "segments": issue["segments"],
+                "message": build_guidance_message(issue),
+            }
+
     try:
         c_emb = embedding_model.encode([request.claim], normalize_embeddings=True)
         k = 3
@@ -563,6 +593,12 @@ def check_claims_batch(request: BatchClaimRequest):
             zone_geo=request.zone_geo,
             comprehension_level=request.comprehension_level,
             user_id=request.user_id,
+            # Chaque ligne du lot est déjà une affirmation séparée par
+            # construction (convention "une ligne = un claim" du batch) :
+            # la re-détecter comme "saisie multiple" serait redondant, et le
+            # batch ne peut de toute façon pas afficher de guidage
+            # interactif par ligne (il attend un verdict immédiat).
+            force=True,
         )
         verdict = check_claim(claim_request)
         results.append(BatchResultItem(claim=line, result=verdict))

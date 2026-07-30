@@ -6,6 +6,7 @@ import VerdictCard from './components/VerdictCard';
 import SourcesAccordion from './components/SourcesAccordion';
 import HistoryPanel from './components/HistoryPanel';
 import BatchPanel from './components/BatchPanel';
+import GuidanceCard from './components/GuidanceCard';
 import { API_BASE_URL } from './config';
 import { getUserId } from './userId';
 import { extractApiError } from './apiError';
@@ -35,24 +36,27 @@ export default function App() {
   const [error, setError] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
+  const [batchInitialText, setBatchInitialText] = useState<string | undefined>(undefined);
+  const [guidance, setGuidance] = useState<any>(null);
   const [userId] = useState(getUserId);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [uploadPartial, setUploadPartial] = useState(false);
 
-  const handleVerify = async (text: string) => {
+  const handleVerify = async (text: string, force: boolean = false) => {
     if (!text.trim()) return;
     setIsVerifying(true);
     setError("");
     setResult(null);
+    setGuidance(null);
     const startedAt = Date.now();
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/check-claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ claim: text, zone_geo: zoneGeo, comprehension_level: comprehensionLevel, user_id: userId })
+        body: JSON.stringify({ claim: text, zone_geo: zoneGeo, comprehension_level: comprehensionLevel, user_id: userId, force })
       });
       const data = await response.json();
       // Le corps de la réponse est lu AVANT de vérifier response.ok : sinon
@@ -61,6 +65,16 @@ export default function App() {
       // générique, alors qu'il était déjà disponible - même défaut que celui
       // corrigé sur l'upload de document.
       if (!response.ok) throw new Error(extractApiError(data, "Erreur serveur lors de la vérification."));
+
+      // needs_guidance : détection heuristique (saisie multiple/vague/
+      // incohérente, voir input_heuristics.py côté backend) - pas un verdict,
+      // on affiche des choix fermés plutôt qu'un résultat trompeur. Le texte
+      // d'origine est conservé pour permettre "envoyer tel quel quand même".
+      if (data.needs_guidance) {
+        setGuidance({ ...data, originalText: text });
+        return;
+      }
+
       // On rattache la déclaration vérifiée à `result` (l'API ne la renvoie pas
       // elle-même) : nécessaire pour que l'export/partage du verdict puisse
       // citer l'affirmation d'origine sans dépendre du state `claim`, qui peut
@@ -75,6 +89,12 @@ export default function App() {
       }
       setIsVerifying(false);
     }
+  };
+
+  const handleVerifyAllSeparately = (segments: string[]) => {
+    setGuidance(null);
+    setBatchInitialText(segments.join("\n"));
+    setShowBatch(true);
   };
 
   const handlePdfUpload = async (file: File) => {
@@ -174,7 +194,7 @@ export default function App() {
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <button
-                onClick={() => setShowBatch(true)}
+                onClick={() => { setBatchInitialText(undefined); setShowBatch(true); }}
                 className="flex items-center gap-2 bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#334155] font-semibold py-2.5 px-4 rounded-xl shadow-sm transition-all"
               >
                 <Layers className="w-4 h-4" /> Vérification par lot
@@ -195,11 +215,21 @@ export default function App() {
               comprehensionLevel={comprehensionLevel}
               userId={userId}
               onClose={() => setShowBatch(false)}
+              initialText={batchInitialText}
             />
           )}
 
           <ClaimInput claim={claim} setClaim={setClaim} onVerify={handleVerify} isLoading={isVerifying} />
-          
+
+          {guidance && (
+            <GuidanceCard
+              guidance={guidance}
+              onVerifySegment={(segment) => handleVerify(segment)}
+              onVerifyAllSeparately={handleVerifyAllSeparately}
+              onSendAnyway={() => handleVerify(guidance.originalText, true)}
+            />
+          )}
+
           {error && (
             <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200">
               {error}

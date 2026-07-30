@@ -31,13 +31,18 @@ export default function BatchPanel({
   comprehensionLevel,
   userId,
   onClose,
+  initialText,
 }: {
   zoneGeo: string;
   comprehensionLevel: string;
   userId: string;
   onClose: () => void;
+  // Pré-remplissage optionnel (ex. depuis le guidage "saisie multiple" du
+  // champ principal : l'utilisateur choisit "vérifier tous séparément" et
+  // retrouve directement ses affirmations détectées, une par ligne).
+  initialText?: string;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText ?? '');
   const [results, setResults] = useState<BatchResultItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -62,7 +67,14 @@ export default function BatchPanel({
         const res = await fetch(`${API_BASE_URL}/api/check-claim`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ claim: line, zone_geo: zoneGeo, comprehension_level: comprehensionLevel, user_id: userId }),
+          // force: true - une ligne du lot est déjà une affirmation séparée
+          // par construction ("une ligne = un claim") : sans ce flag, la
+          // détection de saisie multiple/vague (voir main.py,
+          // input_heuristics.py) renverrait needs_guidance au lieu d'un
+          // verdict pour toute ligne courte ou tournée en question, que ce
+          // composant ne sait pas afficher (il attend directement un
+          // verdict par ligne, pas de guidage interactif).
+          body: JSON.stringify({ claim: line, zone_geo: zoneGeo, comprehension_level: comprehensionLevel, user_id: userId, force: true }),
         });
         const data = await res.json();
         if (!res.ok) {
