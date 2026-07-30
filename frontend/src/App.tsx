@@ -19,6 +19,9 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
   const [userId] = useState(getUserId);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
 
   const handleVerify = async (text: string) => {
     if (!text.trim()) return;
@@ -47,9 +50,18 @@ export default function App() {
   };
 
   const handlePdfUpload = async (file: File) => {
+    // Un vrai PDF (rapport GIEC, scan) peut prendre plusieurs secondes à
+    // traiter côté serveur (extraction + OCR de secours page par page) :
+    // sans état de chargement explicite, l'utilisateur ne voit strictement
+    // rien se passer pendant tout ce temps (constaté : 8,4s de silence total
+    // sur un PDF réel de 7 Mo avant ce correctif).
+    setIsUploading(true);
+    setUploadError("");
+    setUploadSuccess("");
+
     const formData = new FormData();
     formData.append("file", file);
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/upload-pdf`, {
         method: "POST",
@@ -58,8 +70,21 @@ export default function App() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Erreur lors de la lecture du document.");
       setClaim(data.extracted_text);
+      setUploadSuccess(`« ${file.name} » analysé : le texte extrait a été inséré ci-dessous.`);
     } catch (err: any) {
-      alert(err.message);
+      // Une erreur réseau (backend injoignable, mauvais port, CORS...) ne
+      // produit pas de message exploitable côté navigateur (juste "Failed to
+      // fetch") : on l'affiche quand même mais avec un message plus clair
+      // que le message brut, pour que l'utilisateur comprenne qu'il s'agit
+      // d'un problème de connexion au serveur et non du document lui-même.
+      const isNetworkError = err instanceof TypeError;
+      setUploadError(
+        isNetworkError
+          ? "Impossible de contacter le serveur d'analyse. Vérifiez que le backend est bien démarré et accessible."
+          : err.message
+      );
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -71,6 +96,9 @@ export default function App() {
         comprehensionLevel={comprehensionLevel}
         setComprehensionLevel={setComprehensionLevel}
         onPdfUpload={handlePdfUpload}
+        isUploading={isUploading}
+        uploadError={uploadError}
+        uploadSuccess={uploadSuccess}
       />
       
       <main className="flex-1 overflow-y-auto p-8 lg:p-12">
