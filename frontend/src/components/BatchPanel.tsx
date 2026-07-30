@@ -91,18 +91,29 @@ export default function BatchPanel({
             <X className="w-5 h-5" />
           </button>
         </div>
+        <p className="text-sm text-[#64748B] mb-1">
+          Utile pour vérifier d'un coup plusieurs affirmations d'un article ou d'un fil de discussion,
+          plutôt qu'une par une.
+        </p>
         <p className="text-sm text-[#64748B] mb-4">
-          Collez plusieurs affirmations à vérifier, <strong>une par ligne</strong> (max {MAX_BATCH_CLAIMS}).
+          Collez vos affirmations ci-dessous, <strong>une par ligne</strong> (max {MAX_BATCH_CLAIMS}).
           Chacune suit le pipeline complet de vérification, l'une après l'autre.
         </p>
 
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={"Affirmation 1...\nAffirmation 2...\nAffirmation 3..."}
+          placeholder={
+            "Les températures moyennes en Côte d'Ivoire ont augmenté depuis 1960\n" +
+            "Le niveau de la mer monte plus vite en Afrique de l'Ouest que la moyenne mondiale\n" +
+            "La Terre est plate"
+          }
           disabled={loading}
-          className="w-full min-h-[140px] border border-[#CBD5E1] rounded-lg p-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
+          className="w-full min-h-[140px] border border-[#CBD5E1] rounded-lg p-3 text-sm mb-1 focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
         />
+        {/* Le placeholder disparaît dès la première frappe : ce rappel du
+            format reste visible pendant toute la saisie, pas seulement avant. */}
+        <p className="text-xs text-[#94A3B8] mb-4">Une affirmation par ligne — pas de question, pas de puces.</p>
 
         <button
           onClick={handleSubmit}
