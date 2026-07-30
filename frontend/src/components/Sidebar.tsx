@@ -1,6 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { Globe, UploadCloud, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 
+const LEVEL_DESCRIPTIONS: Record<string, string> = {
+  "débutant": "Explication simple et vulgarisée, sans jargon.",
+  "intermédiaire": "Explication claire avec contexte (niveau par défaut).",
+  "amateur": "Ajoute les scores et le nombre de sources utilisés.",
+  "expert": "Sortie technique brute : classification NLI, score cosinus, probabilités par classe.",
+};
+
 interface SidebarProps {
   zoneGeo: string;
   setZoneGeo: (zone: string) => void;
@@ -90,12 +97,22 @@ export default function Sidebar({
           <option value="amateur">Amateur</option>
           <option value="expert">Expert</option>
         </select>
+        {/* Descriptions alignées sur ce que produit réellement chaque niveau
+            côté backend (voir build_analyse_text dans main.py), pas des
+            libellés inventés : débutant vulgarise, intermédiaire donne le
+            contexte, amateur ajoute les scores, expert donne la sortie
+            technique brute (classification NLI, probabilités). */}
+        <p className="text-xs text-[#64748B] mt-2 leading-relaxed">
+          {LEVEL_DESCRIPTIONS[comprehensionLevel]}
+        </p>
       </div>
 
       {/* Analyse PDF */}
       <div>
         <label className="block text-sm font-bold text-[#1E293B] uppercase tracking-wide mb-3">📄 Analyse de Document</label>
-        <p className="text-xs text-[#64748B] mb-4">Importez un PDF pour extraire une affirmation à vérifier.</p>
+        <p className="text-xs text-[#64748B] mb-4">
+          Formats acceptés : PDF, TXT. Le texte extrait pré-remplit automatiquement le champ de vérification — vous pourrez le modifier avant de lancer la vérification.
+        </p>
         
         <div
           onClick={() => !isUploading && fileInputRef.current?.click()}

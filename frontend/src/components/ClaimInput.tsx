@@ -80,7 +80,7 @@ export default function ClaimInput({ claim, setClaim, onVerify, isLoading }: Cla
         value={claim}
         onChange={(e) => setClaim(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Collez, saisissez ou dictez la déclaration à vérifier... (Appuyez sur Entrée)"
+        placeholder='Ex. : « Le niveau des océans a augmenté de 20 cm depuis 1900 » — une affirmation, pas une question. Collez, saisissez ou dictez. (Entrée pour vérifier)'
         className="w-full resize-none outline-none text-lg text-[#334155] placeholder:text-[#94A3B8] min-h-[120px] bg-transparent"
       />
       

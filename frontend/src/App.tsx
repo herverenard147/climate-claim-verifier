@@ -87,7 +87,15 @@ export default function App() {
       const data = await response.json();
       if (!response.ok) throw new Error(extractApiError(data, "Erreur lors de la lecture du document."));
       setClaim(data.extracted_text);
-      setUploadSuccess(`« ${file.name} » analysé : le texte extrait a été inséré ci-dessous.`);
+      // Le champ ne reçoit qu'un aperçu (début + fin) quand le document est
+      // long : c'est aussi ce qui sera envoyé à la vérification, pas le
+      // document entier - le préciser pour ne pas laisser croire que
+      // l'intégralité du texte a été prise en compte.
+      setUploadSuccess(
+        data.truncated
+          ? `« ${file.name} » est plus long que l'aperçu inséré : seuls le début et la fin du texte extrait ont été copiés ci-dessous. Complétez-le si besoin avant de vérifier.`
+          : `« ${file.name} » analysé : le texte extrait a été inséré ci-dessous.`
+      );
     } catch (err: any) {
       // Une erreur réseau (backend injoignable, mauvais port, CORS...) ne
       // produit pas de message exploitable côté navigateur (juste "Failed to

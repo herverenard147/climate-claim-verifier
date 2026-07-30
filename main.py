@@ -546,13 +546,18 @@ def upload_pdf(file: UploadFile = File(...)):
         # texte intégral, mais en échantillonnant début ET fin du document
         # extrait (pas seulement les premiers caractères) pour rester
         # représentatif d'un document long.
+        # `truncated` permet au frontend de prévenir l'utilisateur quand
+        # l'aperçu inséré n'est PAS le texte intégral : seul ce texte
+        # tronqué est réellement envoyé à /api/check-claim ensuite (le texte
+        # complet extrait ici n'est jamais conservé côté serveur).
         HEAD, TAIL = 350, 150
-        if len(text) <= HEAD + TAIL:
+        truncated = len(text) > HEAD + TAIL
+        if not truncated:
             extracted = text
         else:
             extracted = text[:HEAD].rstrip() + " [...] " + text[-TAIL:].lstrip()
 
-        return {"extracted_text": extracted.strip()}
+        return {"extracted_text": extracted.strip(), "truncated": truncated}
     except HTTPException:
         raise
     except Exception as e:
