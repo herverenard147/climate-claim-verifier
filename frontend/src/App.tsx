@@ -16,6 +16,16 @@ import { extractApiError } from './apiError';
 // rien passé. On garantit qu'il reste visible au moins ce délai.
 const MIN_LOADING_MS = 400;
 
+// Doivent rester synchronisées avec MAX_UPLOAD_SIZE_BYTES / MAX_OCR_PAGES
+// dans main.py : ajoutées après un OOM reproduit en conditions réelles sur
+// Render (plan gratuit) où un PDF de 33 Mo a rendu tout le backend
+// indisponible ~90s (voir DOCUMENTATION_TECHNIQUE.md). Le contrôle de
+// taille ici évite un aller-retour réseau inutile pour un fichier déjà
+// trop gros ; le backend revalide de toute façon (ce contrôle client ne
+// suffit pas seul, un utilisateur pourrait le contourner).
+const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_OCR_PAGES = 5;
+
 export default function App() {
   const [claim, setClaim] = useState("");
   const [zoneGeo, setZoneGeo] = useState("Global (International)");
@@ -29,6 +39,7 @@ export default function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");
+  const [uploadPartial, setUploadPartial] = useState(false);
 
   const handleVerify = async (text: string) => {
     if (!text.trim()) return;
@@ -75,6 +86,17 @@ export default function App() {
     setIsUploading(true);
     setUploadError("");
     setUploadSuccess("");
+    setUploadPartial(false);
+
+    // Rejet immédiat côté client, sans aller-retour réseau, pour un fichier
+    // déjà trop gros - le backend revalide de toute façon (voir plus haut).
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      setUploadError(
+        `Fichier trop volumineux (${(file.size / (1024 * 1024)).toFixed(1)} Mo, max ${MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)} Mo).`
+      );
+      setIsUploading(false);
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
@@ -87,15 +109,30 @@ export default function App() {
       const data = await response.json();
       if (!response.ok) throw new Error(extractApiError(data, "Erreur lors de la lecture du document."));
       setClaim(data.extracted_text);
+
       // Le champ ne reçoit qu'un aperçu (début + fin) quand le document est
       // long : c'est aussi ce qui sera envoyé à la vérification, pas le
       // document entier - le préciser pour ne pas laisser croire que
       // l'intégralité du texte a été prise en compte.
-      setUploadSuccess(
+      const messages: string[] = [
         data.truncated
-          ? `« ${file.name} » est plus long que l'aperçu inséré : seuls le début et la fin du texte extrait ont été copiés ci-dessous. Complétez-le si besoin avant de vérifier.`
-          : `« ${file.name} » analysé : le texte extrait a été inséré ci-dessous.`
-      );
+          ? `« ${file.name} » est plus long que l'aperçu inséré : seuls le début et la fin du texte extrait ont été copiés ci-dessous.`
+          : `« ${file.name} » analysé : le texte extrait a été inséré ci-dessous.`,
+      ];
+
+      // pages_failed n'existe que pour un PDF (null pour un .txt, voir
+      // main.py) : signale honnêtement les pages non exploitées plutôt que
+      // de laisser croire que tout le document a été lu avec succès.
+      const hasPageIssue = typeof data.pages_failed === "number" && data.pages_failed > 0;
+      if (hasPageIssue) {
+        messages.push(
+          data.ocr_capped
+            ? `${data.pages_failed} page(s) sur ${data.pages_total} n'ont pas pu être lues (limite de reconnaissance de texte scanné : ${MAX_OCR_PAGES} pages max par document).`
+            : `${data.pages_failed} page(s) sur ${data.pages_total} n'ont pas pu être lues (page vide ou scan illisible).`
+        );
+      }
+      setUploadPartial(hasPageIssue);
+      setUploadSuccess(messages.join(" "));
     } catch (err: any) {
       // Une erreur réseau (backend injoignable, mauvais port, CORS...) ne
       // produit pas de message exploitable côté navigateur (juste "Failed to
@@ -124,6 +161,7 @@ export default function App() {
         isUploading={isUploading}
         uploadError={uploadError}
         uploadSuccess={uploadSuccess}
+        uploadPartial={uploadPartial}
       />
       
       <main className="flex-1 overflow-y-auto p-8 lg:p-12">

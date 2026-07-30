@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Globe, UploadCloud, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Globe, UploadCloud, CheckCircle2, Loader2, AlertCircle, AlertTriangle } from 'lucide-react';
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
   "débutant": "Explication simple et vulgarisée, sans jargon.",
@@ -17,6 +17,7 @@ interface SidebarProps {
   isUploading: boolean;
   uploadError: string;
   uploadSuccess: string;
+  uploadPartial: boolean;
 }
 
 export default function Sidebar({
@@ -28,6 +29,7 @@ export default function Sidebar({
   isUploading,
   uploadError,
   uploadSuccess,
+  uploadPartial,
 }: SidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -110,10 +112,18 @@ export default function Sidebar({
       {/* Analyse PDF */}
       <div>
         <label className="block text-sm font-bold text-[#1E293B] uppercase tracking-wide mb-3">📄 Analyse de Document</label>
-        <p className="text-xs text-[#64748B] mb-4">
-          Formats acceptés : PDF, TXT. Le texte extrait pré-remplit automatiquement le champ de vérification — vous pourrez le modifier avant de lancer la vérification.
+        {/* Deux lignes plutôt qu'un seul paragraphe dense : la taille max et
+            la limite OCR sont deux causes d'échec distinctes et fréquentes
+            (voir DOCUMENTATION_TECHNIQUE.md, crash OOM reproduit sur Render)
+            - les séparer les rend visibles d'un coup d'œil plutôt que noyées
+            dans une phrase générale. */}
+        <p className="text-xs text-[#64748B] mb-1">
+          Formats acceptés : PDF, TXT — <strong>5 Mo max</strong>. Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
         </p>
-        
+        <p className="text-xs text-[#94A3B8] mb-4">
+          Pour un PDF scanné (sans texte natif) : les 5 premières pages concernées sont converties en texte automatiquement ; au-delà, les pages suivantes ne sont pas analysées.
+        </p>
+
         <div
           onClick={() => !isUploading && fileInputRef.current?.click()}
           onDragOver={handleDragOver}
@@ -138,6 +148,7 @@ export default function Sidebar({
               <UploadCloud className="w-8 h-8 text-[#94A3B8] mb-2 group-hover:text-[#059669] transition-colors" />
               <span className="text-sm font-medium text-[#475569]">Glissez un PDF ou TXT ici ou</span>
               <span className="text-sm font-bold text-[#059669] mt-1">Parcourez vos fichiers</span>
+              <span className="text-[10px] text-[#94A3B8] mt-1.5 tracking-wide">5 Mo max</span>
             </>
           )}
           <input
@@ -158,9 +169,21 @@ export default function Sidebar({
         )}
 
         {uploadSuccess && !isUploading && (
-          <div className="mt-3 bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg p-3 flex items-start gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[#16A34A] flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-[#166534] font-medium leading-relaxed">{uploadSuccess}</p>
+          // Ambre si des pages n'ont pas pu être lues (limite OCR atteinte ou
+          // page illisible) : un succès complet et un succès partiel n'ont
+          // pas le même niveau de confiance à transmettre visuellement, un
+          // vert uniforme pour les deux cacherait le problème à l'utilisateur.
+          <div className={`mt-3 rounded-lg p-3 flex items-start gap-2 border ${
+            uploadPartial ? "bg-[#FFFBEB] border-[#FDE68A]" : "bg-[#F0FDF4] border-[#BBF7D0]"
+          }`}>
+            {uploadPartial ? (
+              <AlertTriangle className="w-4 h-4 text-[#B45309] flex-shrink-0 mt-0.5" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-[#16A34A] flex-shrink-0 mt-0.5" />
+            )}
+            <p className={`text-xs font-medium leading-relaxed ${uploadPartial ? "text-[#92400E]" : "text-[#166534]"}`}>
+              {uploadSuccess}
+            </p>
           </div>
         )}
       </div>

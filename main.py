@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -569,8 +569,21 @@ def check_claims_batch(request: BatchClaimRequest):
     return results
 
 
+# Limites anti-crash sur l'upload, ajoutées après un OOM reproduit en
+# conditions réelles sur Render (plan gratuit, RAM limitée) : un PDF de 7 Mo
+# a fait planter le backend deux fois, un PDF de 33 Mo (5 pages fusionnées)
+# l'a fait planter avec une coupure de service plus longue (~90s
+# d'indisponibilité totale, y compris /docs, le temps du redémarrage).
+# Aucune des deux limites ci-dessous ne dépend de l'autre : la taille borne
+# la mémoire prise par le fichier lui-même, MAX_OCR_PAGES borne le coût
+# CPU/RAM du fallback OCR (rendu image 200dpi + Tesseract par page), qui
+# reste le poste le plus coûteux même sur un petit fichier très scanné.
+MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024  # 5 Mo
+MAX_OCR_PAGES = 5
+
+
 @app.post("/api/upload-pdf")
-def upload_pdf(file: UploadFile = File(...)):
+def upload_pdf(request: Request, file: UploadFile = File(...)):
     # def (pas async def) : PyPDF2/OCR ci-dessous sont du travail CPU
     # synchrone. Dans une route async def, ce travail s'exécute directement
     # sur la boucle asyncio et bloque TOUT le serveur (un seul worker,
@@ -590,8 +603,26 @@ def upload_pdf(file: UploadFile = File(...)):
     if not is_pdf and not is_txt:
         raise HTTPException(status_code=400, detail="Seuls les fichiers PDF et TXT sont acceptés.")
 
+    # Rejet précoce via l'en-tête Content-Length quand le navigateur le
+    # fournit (quasi toujours pour un upload de fichier) : évite de lire
+    # inutilement un fichier énorme en mémoire avant de le rejeter. Filet de
+    # sécurité en profondeur, pas la seule protection : un client qui
+    # mentirait sur cet en-tête est quand même bloqué par le contrôle sur
+    # len(content) juste après la lecture.
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_UPLOAD_SIZE_BYTES + 10_000:  # marge pour l'overhead multipart
+        raise HTTPException(
+            status_code=413,
+            detail=f"Fichier trop volumineux (max {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} Mo)."
+        )
+
     try:
         content = file.file.read()
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Fichier trop volumineux ({len(content) / (1024 * 1024):.1f} Mo, max {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} Mo)."
+            )
         text = ""
 
         if is_pdf:
@@ -615,13 +646,21 @@ def upload_pdf(file: UploadFile = File(...)):
             page_texts = []
             failed_pages = 0
             ocr_pages = 0
+            ocr_skipped_by_cap = 0  # pages sans texte natif, non tentées en OCR car MAX_OCR_PAGES déjà atteint
             for page_num, page in enumerate(pdf_reader.pages, start=1):
                 try:
                     page_text = page.extract_text()
                 except Exception:
                     page_text = None
 
-                if not page_text and OCR_AVAILABLE:
+                # Plafonné à MAX_OCR_PAGES : le rendu image 200dpi + Tesseract par
+                # page est le poste le plus coûteux en RAM de tout ce pipeline
+                # (reproduit en conditions réelles sur Render) - au-delà de la
+                # limite, une page sans texte natif est comptée comme "échouée"
+                # plutôt que de continuer à tenter l'OCR indéfiniment.
+                if not page_text and OCR_AVAILABLE and ocr_pages >= MAX_OCR_PAGES:
+                    ocr_skipped_by_cap += 1
+                if not page_text and OCR_AVAILABLE and ocr_pages < MAX_OCR_PAGES:
                     try:
                         images = convert_from_bytes(content, first_page=page_num, last_page=page_num, dpi=200)
                         if images:
@@ -637,8 +676,11 @@ def upload_pdf(file: UploadFile = File(...)):
                 else:
                     failed_pages += 1
             text = " ".join(page_texts)
-            print(f"[upload-pdf] {file.filename}: {len(pdf_reader.pages)} page(s), "
+            pages_total = len(pdf_reader.pages)
+            ocr_capped = ocr_skipped_by_cap > 0
+            print(f"[upload-pdf] {file.filename}: {pages_total} page(s), "
                   f"{failed_pages} page(s) sans texte extrait, {ocr_pages} page(s) récupérée(s) par OCR, "
+                  f"{ocr_skipped_by_cap} page(s) non tentée(s) en OCR (limite {MAX_OCR_PAGES} atteinte), "
                   f"{len(text)} caractères extraits au total")
 
             if not text:
@@ -648,6 +690,10 @@ def upload_pdf(file: UploadFile = File(...)):
                 )
         else:
             text = content.decode('utf-8')
+            # Pas de notion de page/OCR pour un .txt : champs à None pour que
+            # le frontend puisse distinguer "pas concerné" de "0 problème".
+            pages_total = failed_pages = ocr_pages = None
+            ocr_capped = False
 
         # Le champ extracted_text préremplit la barre de claim (pas un
         # visualiseur de document) : on renvoie un aperçu court plutôt que le
@@ -665,7 +711,14 @@ def upload_pdf(file: UploadFile = File(...)):
         else:
             extracted = text[:HEAD].rstrip() + " [...] " + text[-TAIL:].lstrip()
 
-        return {"extracted_text": extracted.strip(), "truncated": truncated}
+        return {
+            "extracted_text": extracted.strip(),
+            "truncated": truncated,
+            "pages_total": pages_total,
+            "pages_failed": failed_pages,
+            "ocr_pages_used": ocr_pages,
+            "ocr_capped": ocr_capped,
+        }
     except HTTPException:
         raise
     except Exception as e:
