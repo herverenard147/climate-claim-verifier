@@ -1,0 +1,90 @@
+- generic [ref=f4e3]:
+  - complementary [ref=f4e4]:
+    - generic [ref=f4e9]:
+      - heading "TERRAVA-AI Pro" [level=1] [ref=f4e10]
+      - paragraph [ref=f4e11]: Fact-Checking Climatique
+    - generic [ref=f4e12]:
+      - generic [ref=f4e13]: 📍 Zone Géographique
+      - combobox [ref=f4e14] [cursor=pointer]:
+        - option "Global (International)" [selected]
+        - option "Afrique de l'Ouest"
+        - option "Côte d'Ivoire"
+    - generic [ref=f4e15]:
+      - generic [ref=f4e16]: 🎓 Niveau de compréhension
+      - combobox [ref=f4e17] [cursor=pointer]:
+        - option "Débutant"
+        - option "Intermédiaire"
+        - option "Amateur"
+        - option "Expert" [selected]
+      - paragraph [ref=f4e18]: "Sortie technique brute : classification NLI, score cosinus, probabilités par classe."
+    - generic [ref=f4e19]:
+      - generic [ref=f4e20]: 📄 Analyse de Document
+      - paragraph [ref=f4e21]:
+        - text: "Formats acceptés : PDF, TXT —"
+        - strong [ref=f4e22]: 8 Mo max
+        - text: . Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
+      - paragraph [ref=f4e23]: "Les PDF scannés (sans texte natif) ne sont pas pris en charge sur cet environnement : seul le texte déjà présent dans le document est extrait."
+      - generic [ref=f4e24] [cursor=pointer]:
+        - generic [ref=f4e28]: Glissez un PDF ou TXT ici ou
+        - generic [ref=f4e29]: Parcourez vos fichiers
+        - generic [ref=f4e30]: 8 Mo max
+    - paragraph [ref=f4e36]: Connecté au moteur d'intelligence climatique. Données synchronisées.
+  - main [ref=f4e37]:
+    - generic [ref=f4e38]:
+      - generic [ref=f4e39]:
+        - generic [ref=f4e40]:
+          - heading "Analyse Climatique" [level=1] [ref=f4e41]
+          - paragraph [ref=f4e42]: Vérifiez la validité scientifique d'une déclaration par rapport aux données du GIEC et de l'OMM.
+        - generic [ref=f4e43]:
+          - button "Vérification par lot" [ref=f4e44] [cursor=pointer]
+          - button "Mon historique" [ref=f4e49] [cursor=pointer]
+      - generic [ref=f4e54]:
+        - 'textbox "Ex. : « Le niveau des océans a augmenté de 20 cm depuis 1900 » — une affirmation, pas une question. Collez, saisissez ou dictez. (Entrée pour vérifier)" [ref=f4e55]': Les températures moyennes en Côte d'Ivoire ont augmenté depuis 1960.
+        - generic [ref=f4e56]:
+          - button "Dicter une note vocale" [ref=f4e57] [cursor=pointer]
+          - button "Vérifier la déclaration" [ref=f4e61] [cursor=pointer]
+      - generic [ref=f4e212]:
+        - generic [ref=f4e213]:
+          - generic [ref=f4e214]:
+            - generic [ref=f4e215]:
+              - heading "Synthèse de Fact-Checking" [level=2] [ref=f4e216]
+              - generic [ref=f4e217]:
+                - generic [ref=f4e218]: ✅
+                - text: CONFIRMÉ PAR LES DONNÉES SCIENTIFIQUES
+            - button "Partager" [ref=f4e219] [cursor=pointer]
+          - generic [ref=f4e226]:
+            - heading "Synthèse des Faits & Impacts :" [level=3] [ref=f4e227]
+            - paragraph [ref=f4e228]: "L'information soumise est exacte et validée par le consensus scientifique actuel. Avec un score de similarité de 0.78 entre votre affirmation et la source la plus proche (Banque Mondiale (CCKP), la production de cacao, les températures et les vagues de chaleur), le rapprochement est direct : portée géographique alignée (la Côte d'Ivoire). Le système a consulté 3 source(s) institutionnelle(s) au total (le seuil minimal pour une correspondance valide est de 0.20)."
+          - generic [ref=f4e229]:
+            - generic [ref=f4e230]: "Score de similarité (cosinus) : 0.7808"
+            - generic [ref=f4e231]: "Sources consultées : 3"
+          - generic [ref=f4e233]:
+            - generic [ref=f4e234]: Ce verdict vous a-t-il été utile ?
+            - button [ref=f4e235] [cursor=pointer]
+            - button [ref=f4e238] [cursor=pointer]
+        - generic [ref=f4e241]:
+          - heading "Traçabilité Officielle" [level=2] [ref=f4e246]
+          - generic [ref=f4e247]:
+            - generic [ref=f4e248]:
+              - generic [ref=f4e249]: Banque Mondiale (CCKP) — 2024
+              - paragraph [ref=f4e250]: « Les données de la Banque Mondiale indiquent que les températures moyennes annuelles en Côte d'Ivoire ont augmenté d'environ 1°C depuis 1960. Les projections climatiques suggèrent une augmentation de la fréquence des vagues de chaleur et une perturbation des saisons des pluies, menaçant particulièrement la production de cacao dans les régions du sud et de l'ouest. »
+              - generic [ref=f4e251]:
+                - generic [ref=f4e252]: Profil climatique de la Côte d'Ivoire
+                - link "Consulter l'archive" [ref=f4e253] [cursor=pointer]:
+                  - /url: http://localhost:8010/documents/BanqueMondiale_Cote_Ivoire.txt
+            - generic [ref=f4e258]:
+              - generic [ref=f4e259]: Climate-FEVER (Wikipedia) — 2020
+              - generic [ref=f4e260]: Pertinence géographique/thématique incertaine
+              - paragraph [ref=f4e263]: « Les températures moyennes en Somalie ont augmenté de plus de 1.5°C au cours des dernières décennies, entraînant une désertification accélérée et de graves ravages sur le bétail. »
+              - generic [ref=f4e264]:
+                - generic [ref=f4e265]: Jeu de données initial
+                - link "Consulter l'archive" [ref=f4e266] [cursor=pointer]:
+                  - /url: https://huggingface.co/datasets/tdiggelm/climate_fever
+            - generic [ref=f4e271]:
+              - generic [ref=f4e272]: Climate-FEVER (Wikipedia) — 2020
+              - generic [ref=f4e273]: Pertinence géographique/thématique incertaine
+              - paragraph [ref=f4e276]: « The temperature was the hottest measured in 68 years. »
+              - generic [ref=f4e277]:
+                - generic [ref=f4e278]: Jeu de données initial
+                - link "Consulter l'archive" [ref=f4e279] [cursor=pointer]:
+                  - /url: https://huggingface.co/datasets/tdiggelm/climate_fever

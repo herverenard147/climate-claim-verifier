@@ -1,0 +1,45 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e9]:
+      - heading "TERRAVA-AI Pro" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Fact-Checking Climatique
+    - generic [ref=e12]:
+      - generic [ref=e13]: 📍 Zone Géographique
+      - combobox [ref=e14] [cursor=pointer]:
+        - option "Global (International)" [selected]
+        - option "Afrique de l'Ouest"
+        - option "Côte d'Ivoire"
+    - generic [ref=e15]:
+      - generic [ref=e16]: 🎓 Niveau de compréhension
+      - combobox [ref=e17] [cursor=pointer]:
+        - option "Débutant"
+        - option "Intermédiaire" [selected]
+        - option "Amateur"
+        - option "Expert"
+      - paragraph [ref=e18]: Explication claire avec contexte (niveau par défaut).
+    - generic [ref=e19]:
+      - generic [ref=e20]: 📄 Analyse de Document
+      - paragraph [ref=e21]:
+        - text: "Formats acceptés : PDF, TXT —"
+        - strong [ref=e22]: 8 Mo max
+        - text: . Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
+      - paragraph [ref=e23]: "Les PDF scannés (sans texte natif) ne sont pas pris en charge sur cet environnement : seul le texte déjà présent dans le document est extrait."
+      - generic [ref=e24] [cursor=pointer]:
+        - generic [ref=e28]: Glissez un PDF ou TXT ici ou
+        - generic [ref=e29]: Parcourez vos fichiers
+        - generic [ref=e30]: 8 Mo max
+    - paragraph [ref=e36]: Connecté au moteur d'intelligence climatique. Données synchronisées.
+  - main [ref=e37]:
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - heading "Analyse Climatique" [level=1] [ref=e41]
+          - paragraph [ref=e42]: Vérifiez la validité scientifique d'une déclaration par rapport aux données du GIEC et de l'OMM.
+        - generic [ref=e43]:
+          - button "Vérification par lot" [ref=e44] [cursor=pointer]
+          - button "Mon historique" [ref=e49] [cursor=pointer]
+      - generic [ref=e54]:
+        - 'textbox "Ex. : « Le niveau des océans a augmenté de 20 cm depuis 1900 » — une affirmation, pas une question. Collez, saisissez ou dictez. (Entrée pour vérifier)" [ref=e55]'
+        - generic [ref=e56]:
+          - button "Dicter une note vocale" [ref=e57] [cursor=pointer]
+          - button "Vérifier la déclaration" [disabled] [ref=e61]

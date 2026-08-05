@@ -1,0 +1,85 @@
+- generic [ref=f2e3]:
+  - complementary [ref=f2e4]:
+    - generic [ref=f2e9]:
+      - heading "TERRAVA-AI Pro" [level=1] [ref=f2e10]
+      - paragraph [ref=f2e11]: Fact-Checking Climatique
+    - generic [ref=f2e12]:
+      - generic [ref=f2e13]: 📍 Zone Géographique
+      - combobox [ref=f2e14] [cursor=pointer]:
+        - option "Global (International)" [selected]
+        - option "Afrique de l'Ouest"
+        - option "Côte d'Ivoire"
+    - generic [ref=f2e15]:
+      - generic [ref=f2e16]: 🎓 Niveau de compréhension
+      - combobox [ref=f2e17] [cursor=pointer]:
+        - option "Débutant"
+        - option "Intermédiaire" [selected]
+        - option "Amateur"
+        - option "Expert"
+      - paragraph [ref=f2e18]: Explication claire avec contexte (niveau par défaut).
+    - generic [ref=f2e19]:
+      - generic [ref=f2e20]: 📄 Analyse de Document
+      - paragraph [ref=f2e21]:
+        - text: "Formats acceptés : PDF, TXT —"
+        - strong [ref=f2e22]: 8 Mo max
+        - text: . Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
+      - paragraph [ref=f2e23]: "Les PDF scannés (sans texte natif) ne sont pas pris en charge sur cet environnement : seul le texte déjà présent dans le document est extrait."
+      - generic [ref=f2e24] [cursor=pointer]:
+        - generic [ref=f2e28]: Glissez un PDF ou TXT ici ou
+        - generic [ref=f2e29]: Parcourez vos fichiers
+        - generic [ref=f2e30]: 8 Mo max
+    - paragraph [ref=f2e36]: Connecté au moteur d'intelligence climatique. Données synchronisées.
+  - main [ref=f2e37]:
+    - generic [ref=f2e38]:
+      - generic [ref=f2e39]:
+        - generic [ref=f2e40]:
+          - heading "Analyse Climatique" [level=1] [ref=f2e41]
+          - paragraph [ref=f2e42]: Vérifiez la validité scientifique d'une déclaration par rapport aux données du GIEC et de l'OMM.
+        - generic [ref=f2e43]:
+          - button "Vérification par lot" [ref=f2e44] [cursor=pointer]
+          - button "Mon historique" [ref=f2e49] [cursor=pointer]
+      - generic [ref=f2e54]:
+        - 'textbox "Ex. : « Le niveau des océans a augmenté de 20 cm depuis 1900 » — une affirmation, pas une question. Collez, saisissez ou dictez. (Entrée pour vérifier)" [ref=f2e55]': Le prix du bitcoin a doublé cette année.
+        - generic [ref=f2e56]:
+          - button "Dicter une note vocale" [ref=f2e57] [cursor=pointer]
+          - button "Vérifier la déclaration" [ref=f2e61] [cursor=pointer]
+      - generic [ref=f2e68]:
+        - generic [ref=f2e69]:
+          - generic [ref=f2e70]:
+            - generic [ref=f2e71]:
+              - heading "Synthèse de Fact-Checking" [level=2] [ref=f2e72]
+              - generic [ref=f2e73]:
+                - generic [ref=f2e74]: ⚠️
+                - text: PREUVES INDIRECTES / INSUFFISANTES
+            - button "Partager" [ref=f2e75] [cursor=pointer]
+          - generic [ref=f2e82]:
+            - heading "Synthèse des Faits & Impacts :" [level=3] [ref=f2e83]
+            - paragraph [ref=f2e84]: Les documents institutionnels (GIEC, OMM, etc.) traitent de sujets connexes, mais ils ne permettent pas de confirmer ou de réfuter explicitement et directement cette affirmation précise. La source la plus proche (Organisation Météorologique Mondiale (OMM)) porte sur le niveau de la mer et les inondations, portant sur Abidjan, Dakar, l'Afrique de l'Ouest, la Côte d'Ivoire et le Sénégal. Ce contenu aborde un sujet connexe sans confirmer ni infirmer explicitement votre affirmation. Une analyse humaine des documents sourcés ci-dessous est recommandée.
+          - generic [ref=f2e86]:
+            - generic [ref=f2e87]: Ce verdict vous a-t-il été utile ?
+            - button [ref=f2e88] [cursor=pointer]
+            - button [ref=f2e91] [cursor=pointer]
+        - generic [ref=f2e94]:
+          - heading "Traçabilité Officielle" [level=2] [ref=f2e99]
+          - generic [ref=f2e100]:
+            - generic [ref=f2e101]:
+              - generic [ref=f2e102]: Organisation Météorologique Mondiale (OMM) — 2023
+              - paragraph [ref=f2e103]: « Selon l'OMM, l'Afrique de l'Ouest subit une élévation du niveau de la mer plus rapide que la moyenne mondiale, menaçant les infrastructures côtières d'Abidjan et de Dakar. Les événements extrêmes, dont les inondations sévères, ont causé des pertes économiques majeures dans la sous-région. »
+              - generic [ref=f2e104]:
+                - generic [ref=f2e105]: État du Climat en Afrique 2023
+                - link "Consulter l'archive" [ref=f2e106] [cursor=pointer]:
+                  - /url: http://localhost:8010/documents/OMM_Afrique_Climat.txt
+            - generic [ref=f2e111]:
+              - generic [ref=f2e112]: Climate-FEVER (Wikipedia) — 2020
+              - paragraph [ref=f2e113]: "« The value of an investment is doubled if the return r {\\displaystyle r} = +100%, that is, if r l o g {\\displaystyle r_{\\mathrm {log} }} = ln($200 / $100) = ln(2) = 69.3%. »"
+              - generic [ref=f2e114]:
+                - generic [ref=f2e115]: Jeu de données initial
+                - link "Consulter l'archive" [ref=f2e116] [cursor=pointer]:
+                  - /url: https://huggingface.co/datasets/tdiggelm/climate_fever
+            - generic [ref=f2e121]:
+              - generic [ref=f2e122]: Banque Mondiale (CCKP) — 2024
+              - paragraph [ref=f2e123]: « Les données de la Banque Mondiale indiquent que les températures moyennes annuelles en Côte d'Ivoire ont augmenté d'environ 1°C depuis 1960. Les projections climatiques suggèrent une augmentation de la fréquence des vagues de chaleur et une perturbation des saisons des pluies, menaçant particulièrement la production de cacao dans les régions du sud et de l'ouest. »
+              - generic [ref=f2e124]:
+                - generic [ref=f2e125]: Profil climatique de la Côte d'Ivoire
+                - link "Consulter l'archive" [ref=f2e126] [cursor=pointer]:
+                  - /url: http://localhost:8010/documents/BanqueMondiale_Cote_Ivoire.txt

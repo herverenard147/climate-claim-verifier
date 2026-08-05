@@ -1,0 +1,58 @@
+- generic [ref=f3e3]:
+  - complementary [ref=f3e4]:
+    - generic [ref=f3e9]:
+      - heading "TERRAVA-AI Pro" [level=1] [ref=f3e10]
+      - paragraph [ref=f3e11]: Fact-Checking Climatique
+    - generic [ref=f3e12]:
+      - generic [ref=f3e13]: 📍 Zone Géographique
+      - combobox [ref=f3e14] [cursor=pointer]:
+        - option "Global (International)" [selected]
+        - option "Afrique de l'Ouest"
+        - option "Côte d'Ivoire"
+    - generic [ref=f3e15]:
+      - generic [ref=f3e16]: 🎓 Niveau de compréhension
+      - combobox [ref=f3e17] [cursor=pointer]:
+        - option "Débutant"
+        - option "Intermédiaire" [selected]
+        - option "Amateur"
+        - option "Expert"
+      - paragraph [ref=f3e18]: Explication claire avec contexte (niveau par défaut).
+    - generic [ref=f3e19]:
+      - generic [ref=f3e20]: 📄 Analyse de Document
+      - paragraph [ref=f3e21]:
+        - text: "Formats acceptés : PDF, TXT —"
+        - strong [ref=f3e22]: 8 Mo max
+        - text: . Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
+      - paragraph [ref=f3e23]: "Les PDF scannés (sans texte natif) ne sont pas pris en charge sur cet environnement : seul le texte déjà présent dans le document est extrait."
+      - generic [ref=f3e24] [cursor=pointer]:
+        - generic [ref=f3e28]: Glissez un PDF ou TXT ici ou
+        - generic [ref=f3e29]: Parcourez vos fichiers
+        - generic [ref=f3e30]: 8 Mo max
+    - paragraph [ref=f3e36]: Connecté au moteur d'intelligence climatique. Données synchronisées.
+  - main [ref=f3e37]:
+    - generic [ref=f3e38]:
+      - generic [ref=f3e39]:
+        - generic [ref=f3e40]:
+          - heading "Analyse Climatique" [level=1] [ref=f3e41]
+          - paragraph [ref=f3e42]: Vérifiez la validité scientifique d'une déclaration par rapport aux données du GIEC et de l'OMM.
+        - generic [ref=f3e43]:
+          - button "Vérification par lot" [active] [ref=f3e44] [cursor=pointer]
+          - button "Mon historique" [ref=f3e49] [cursor=pointer]
+      - generic [ref=f3e66]:
+        - generic [ref=f3e67]:
+          - heading "Vérification par lot" [level=2] [ref=f3e68]
+          - button [ref=f3e73] [cursor=pointer]
+        - paragraph [ref=f3e77]: Utile pour vérifier d'un coup plusieurs affirmations d'un article ou d'un fil de discussion, plutôt qu'une par une.
+        - paragraph [ref=f3e78]:
+          - text: Collez vos affirmations ci-dessous,
+          - strong [ref=f3e79]: une par ligne
+          - text: (max 20). Chacune suit le pipeline complet de vérification, l'une après l'autre.
+        - textbox "Les températures moyennes en Côte d'Ivoire ont augmenté depuis 1960 Le niveau de la mer monte plus vite en Afrique de l'Ouest que la moyenne mondiale La Terre est plate" [ref=f3e80]:
+          - /placeholder: "Les températures moyennes en Côte d'Ivoire ont augmenté depuis 1960\nLe niveau de la mer monte plus vite en Afrique de l'Ouest que la moyenne mondiale\nLa Terre est plate"
+        - paragraph [ref=f3e81]: Une affirmation par ligne — pas de question, pas de puces.
+        - button "Vérifier le lot" [disabled] [ref=f3e82]
+      - generic [ref=f3e54]:
+        - 'textbox "Ex. : « Le niveau des océans a augmenté de 20 cm depuis 1900 » — une affirmation, pas une question. Collez, saisissez ou dictez. (Entrée pour vérifier)" [ref=f3e55]'
+        - generic [ref=f3e56]:
+          - button "Dicter une note vocale" [ref=f3e57] [cursor=pointer]
+          - button "Vérifier la déclaration" [disabled] [ref=f3e61]

@@ -1,0 +1,87 @@
+- generic [ref=f4e3]:
+  - complementary [ref=f4e4]:
+    - generic [ref=f4e9]:
+      - heading "TERRAVA-AI Pro" [level=1] [ref=f4e10]
+      - paragraph [ref=f4e11]: Fact-Checking Climatique
+    - generic [ref=f4e12]:
+      - generic [ref=f4e13]: 📍 Zone Géographique
+      - combobox [ref=f4e14] [cursor=pointer]:
+        - option "Global (International)" [selected]
+        - option "Afrique de l'Ouest"
+        - option "Côte d'Ivoire"
+    - generic [ref=f4e15]:
+      - generic [ref=f4e16]: 🎓 Niveau de compréhension
+      - combobox [ref=f4e17] [cursor=pointer]:
+        - option "Débutant"
+        - option "Intermédiaire" [selected]
+        - option "Amateur"
+        - option "Expert"
+      - paragraph [ref=f4e18]: Explication claire avec contexte (niveau par défaut).
+    - generic [ref=f4e19]:
+      - generic [ref=f4e20]: 📄 Analyse de Document
+      - paragraph [ref=f4e21]:
+        - text: "Formats acceptés : PDF, TXT —"
+        - strong [ref=f4e22]: 8 Mo max
+        - text: . Le texte extrait pré-remplit le champ de vérification, modifiable avant de lancer la vérification.
+      - paragraph [ref=f4e23]: "Les PDF scannés (sans texte natif) ne sont pas pris en charge sur cet environnement : seul le texte déjà présent dans le document est extrait."
+      - generic [ref=f4e24] [cursor=pointer]:
+        - generic [ref=f4e28]: Glissez un PDF ou TXT ici ou
+        - generic [ref=f4e29]: Parcourez vos fichiers
+        - generic [ref=f4e30]: 8 Mo max
+    - paragraph [ref=f4e36]: Connecté au moteur d'intelligence climatique. Données synchronisées.
+  - main [ref=f4e37]:
+    - generic [ref=f4e38]:
+      - generic [ref=f4e39]:
+        - generic [ref=f4e40]:
+          - heading "Analyse Climatique" [level=1] [ref=f4e41]
+          - paragraph [ref=f4e42]: Vérifiez la validité scientifique d'une déclaration par rapport aux données du GIEC et de l'OMM.
+        - generic [ref=f4e43]:
+          - button "Vérification par lot" [ref=f4e44] [cursor=pointer]
+          - button "Mon historique" [ref=f4e49] [cursor=pointer]
+      - generic [ref=f4e54]:
+        - 'textbox "Ex. : « Le niveau des océans a augmenté de 20 cm depuis 1900 » — une affirmation, pas une question. Collez, saisissez ou dictez. (Entrée pour vérifier)" [ref=f4e55]': Les températures moyennes en Côte d'Ivoire ont augmenté depuis 1960.
+        - generic [ref=f4e56]:
+          - button "Dicter une note vocale" [ref=f4e57] [cursor=pointer]
+          - button "Vérifier la déclaration" [ref=f4e61] [cursor=pointer]
+      - generic [ref=f4e68]:
+        - generic [ref=f4e69]:
+          - generic [ref=f4e70]:
+            - generic [ref=f4e71]:
+              - heading "Synthèse de Fact-Checking" [level=2] [ref=f4e72]
+              - generic [ref=f4e73]:
+                - generic [ref=f4e74]: ✅
+                - text: CONFIRMÉ PAR LES DONNÉES SCIENTIFIQUES
+            - button "Partager" [ref=f4e75] [cursor=pointer]
+          - generic [ref=f4e82]:
+            - heading "Synthèse des Faits & Impacts :" [level=3] [ref=f4e83]
+            - paragraph [ref=f4e84]: "✅ Cette affirmation est confirmée ! Le rapport de Banque Mondiale (CCKP) porte sur la production de cacao, les températures et les vagues de chaleur, portant sur la Côte d'Ivoire : cela va dans le même sens que ce que vous avez affirmé. Cette information vient de sources fiables (comme le GIEC ou l'OMM), donc vous pouvez lui faire confiance."
+          - generic [ref=f4e86]:
+            - generic [ref=f4e87]: Ce verdict vous a-t-il été utile ?
+            - button [ref=f4e88] [cursor=pointer]
+            - button [ref=f4e91] [cursor=pointer]
+        - generic [ref=f4e94]:
+          - heading "Traçabilité Officielle" [level=2] [ref=f4e99]
+          - generic [ref=f4e100]:
+            - generic [ref=f4e101]:
+              - generic [ref=f4e102]: Banque Mondiale (CCKP) — 2024
+              - paragraph [ref=f4e103]: « Les données de la Banque Mondiale indiquent que les températures moyennes annuelles en Côte d'Ivoire ont augmenté d'environ 1°C depuis 1960. Les projections climatiques suggèrent une augmentation de la fréquence des vagues de chaleur et une perturbation des saisons des pluies, menaçant particulièrement la production de cacao dans les régions du sud et de l'ouest. »
+              - generic [ref=f4e104]:
+                - generic [ref=f4e105]: Profil climatique de la Côte d'Ivoire
+                - link "Consulter l'archive" [ref=f4e106] [cursor=pointer]:
+                  - /url: http://localhost:8010/documents/BanqueMondiale_Cote_Ivoire.txt
+            - generic [ref=f4e111]:
+              - generic [ref=f4e112]: Climate-FEVER (Wikipedia) — 2020
+              - generic [ref=f4e113]: Pertinence géographique/thématique incertaine
+              - paragraph [ref=f4e116]: « Les températures moyennes en Somalie ont augmenté de plus de 1.5°C au cours des dernières décennies, entraînant une désertification accélérée et de graves ravages sur le bétail. »
+              - generic [ref=f4e117]:
+                - generic [ref=f4e118]: Jeu de données initial
+                - link "Consulter l'archive" [ref=f4e119] [cursor=pointer]:
+                  - /url: https://huggingface.co/datasets/tdiggelm/climate_fever
+            - generic [ref=f4e124]:
+              - generic [ref=f4e125]: Climate-FEVER (Wikipedia) — 2020
+              - generic [ref=f4e126]: Pertinence géographique/thématique incertaine
+              - paragraph [ref=f4e129]: « The temperature was the hottest measured in 68 years. »
+              - generic [ref=f4e130]:
+                - generic [ref=f4e131]: Jeu de données initial
+                - link "Consulter l'archive" [ref=f4e132] [cursor=pointer]:
+                  - /url: https://huggingface.co/datasets/tdiggelm/climate_fever
